@@ -1,0 +1,147 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Go
+
+# Reusable Go pipeline for metio projects. A `detect` job inspects the repo, and
+# the optional gates skip themselves via job-level `if` — so any Go repo adopts
+# it with no inputs at all, whether it's a controller with envtest-backed tests
+# or a plain library:
+#
+#   jobs:
+#     go:
+#       uses: metio/ci/.github/workflows/golang.yml@v1
+#
+# The caller keeps its own non-Go jobs and one all-green aggregate ("All Tests
+# Pass") that lists this `go` job — that aggregate is the single required check
+# (see README).
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go for the detect job (build/test/lint read go.mod): "stable", "oldstable", or e.g. "1.24.x".'
+        type: string
+        default: stable
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect Go environment
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      arch-go: ${{ steps.env.outputs.arch-go }}
+      envtest: ${{ steps.env.outputs.envtest }}
+      k8s: ${{ steps.versions.outputs.k8s }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - id: env
+        # Detect which optional gates this repo needs from its own files, so the
+        # downstream jobs skip themselves rather than spin up a runner to no-op.
+        # arch-go.yml presence is unambiguous; envtest is detected by its import
+        # in test files (you only import it when you actually run it, so this
+        # won't false-negative on a transitive dependency).
+        run: |
+          archgo=false
+          if [ -f arch-go.yml ] || [ -f .arch-go.yml ]; then archgo=true; fi
+          envtest=false
+          if grep -rqE 'sigs\.k8s\.io/controller-runtime/pkg/envtest' --include='*_test.go' . 2>/dev/null; then envtest=true; fi
+          echo "arch-go=$archgo" >> "$GITHUB_OUTPUT"
+          echo "envtest=$envtest" >> "$GITHUB_OUTPUT"
+          echo "detected: arch-go=$archgo envtest=$envtest"
+      - if: steps.env.outputs.envtest == 'true'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+      - id: versions
+        # When envtest is used: the newest 4 Kubernetes minors (latest patch each)
+        # that envtest publishes apiserver+etcd binaries for, discovered at runtime
+        # so a new release is tested automatically — a minor envtest can't run
+        # surfaces as a failure, not silent staleness. Otherwise a single sentinel
+        # runs the test job exactly once.
+        run: |
+          set -uo pipefail
+          if [ "${{ steps.env.outputs.envtest }}" != "true" ]; then
+            echo 'k8s=["none"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          k8s=$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest list 2>/dev/null \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
+            | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
+            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -4 \
+            | jq -R . | jq -cs . 2>/dev/null || echo '[]')
+          [ "$(jq 'length' <<<"$k8s" 2>/dev/null || echo 0)" -gt 0 ] || k8s='["1.33.0"]'
+          echo "k8s=$k8s" >> "$GITHUB_OUTPUT"
+          echo "k8s=$k8s"
+
+  test:
+    needs: detect
+    runs-on: ${{ inputs.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s: ${{ fromJson(needs.detect.outputs.k8s) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build ./...
+      - if: needs.detect.outputs.envtest == 'true'
+        name: Set up envtest assets (Kubernetes ${{ matrix.k8s }})
+        # Installs the kube-apiserver + etcd bundle so the envtest-backed suite
+        # runs; without KUBEBUILDER_ASSETS those tests skip.
+        run: |
+          assets=$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use ${{ matrix.k8s }} -p path)
+          echo "KUBEBUILDER_ASSETS=$assets" >> "$GITHUB_ENV"
+      - run: go test -v -race -shuffle=on -coverprofile=cover.out ./...
+
+  lint-go:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+      - run: go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
+      - name: gofumpt formatting
+        run: |
+          unformatted="$(go run mvdan.cc/gofumpt@latest -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofumpt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  vulnerabilities:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Hard gate: a reachable-from-code advisory blocks merge. The fix is usually
+      # bumping the `toolchain` directive in go.mod (stdlib) or `go get -u` (deps).
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  architecture:
+    needs: detect
+    if: needs.detect.outputs.arch-go == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go run github.com/arch-go/arch-go@latest

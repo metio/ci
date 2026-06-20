@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Needs release
+description: >
+  Decide whether a release is warranted: true when there is no prior release, or
+  when commits since the last release touched any of the given paths. Lets a
+  scheduled release workflow no-op on a quiet period instead of cutting an empty
+  release. Requires a full-history checkout with tags (actions/checkout with
+  fetch-depth: 0).
+
+inputs:
+  paths:
+    description: Space-separated paths that, when changed since the last release, warrant a release (e.g. "go.mod main.go internal api").
+    required: true
+
+outputs:
+  needed:
+    description: '"true" when a release is warranted, "false" otherwise.'
+    value: ${{ steps.check.outputs.needed }}
+  last:
+    description: The last release tag, or empty when there is none.
+    value: ${{ steps.check.outputs.last }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -uo pipefail
+        # Last release = most recent tag reachable from HEAD. No tag → first release.
+        last="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+        echo "last=$last" >> "$GITHUB_OUTPUT"
+        if [ -z "$last" ]; then
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+          echo "no prior release tag; release needed"
+          exit 0
+        fi
+        # word-split PATHS into pathspecs deliberately.
+        # shellcheck disable=SC2086
+        changed="$(git diff --name-only "$last"..HEAD -- $PATHS | head -1)"
+        if [ -n "$changed" ]; then
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+          echo "changes under the given paths since $last; release needed"
+        else
+          echo "needed=false" >> "$GITHUB_OUTPUT"
+          echo "no changes under the given paths since $last; skipping release"
+        fi
