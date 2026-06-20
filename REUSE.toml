@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+version = 1
+SPDX-PackageName = "ci"
+SPDX-PackageSupplier = "Sebastian Hoß <seb@xn--ho-hia.de>"
+SPDX-PackageDownloadLocation = "https://github.com/metio/ci"

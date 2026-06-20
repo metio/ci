@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: CalVer
+description: >
+  Compute the next metio calendar version with second precision, so a repo can
+  release many times a day. The format is YYYY.M.D with the UTC time-of-day
+  (HHMMSS) appended to the day — e.g. 2026.6.20143022 — which stays a 3-part,
+  leading-zero-free, monotonically increasing string, i.e. valid semver, so Go
+  modules, Helm charts, and Terraform providers can all use it.
+
+inputs:
+  prefix:
+    description: Optional prefix, e.g. "v" for Go-module / Terraform tags.
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: The computed version, e.g. 2026.6.20143022 (or v2026.6.20143022 with prefix "v").
+    value: ${{ steps.calc.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: calc
+      shell: bash
+      env:
+        PREFIX: ${{ inputs.prefix }}
+      run: |
+        set -euo pipefail
+        # %-m / %-d drop the leading zero so each component is a bare integer
+        # (no leading zeros → valid semver); %H%M%S is appended to the day, so a
+        # later time on the same day is a larger third component, and a new day or
+        # month bumps an earlier component — monotonic either way.
+        version="${PREFIX}$(date -u +%Y.%-m.%-d%H%M%S)"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "next version: $version"
