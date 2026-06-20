@@ -112,6 +112,24 @@ scheduled run no-ops on a quiet period. Needs a full-history checkout:
   run: echo "releasing ${{ steps.gate.outputs.last }} → next"
 ```
 
+### `release-notes`
+
+Installs git-cliff and renders release notes for a version using the org-wide
+git-cliff config, writing them to a file for `gh release create --notes-file`:
+
+```yaml
+- id: notes
+  uses: metio/ci/release-notes@main
+  with:
+    version: ${{ steps.version.outputs.version }}
+    previous: ${{ steps.gate.outputs.last }}   # empty on the first release
+- run: gh release create "$VERSION" --notes-file "${{ steps.notes.outputs.file }}"
+```
+
+The git-cliff version and the config pin live in the action (Renovate bumps
+both), so consumers just bump the action ref — no per-repo git-cliff wiring. This
+repo's own `release.yml` uses it.
+
 ## One required check: `All Tests Pass`
 
 Mark **only** the `all-tests-pass` job required in branch protection, then turn on

@@ -29,9 +29,17 @@ jobs:
       - id: version
         if: steps.gate.outputs.needed == 'true'
         uses: ./calver
+      - id: notes
+        name: Generate release notes
+        if: steps.gate.outputs.needed == 'true'
+        uses: ./release-notes
+        with:
+          version: ${{ steps.version.outputs.version }}
+          previous: ${{ steps.gate.outputs.last }}
       - name: Create release
         if: steps.gate.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: gh release create "$VERSION" --target "$GITHUB_SHA" --generate-notes --title "$VERSION"
+          NOTES: ${{ steps.notes.outputs.file }}
+        run: gh release create "$VERSION" --target "$GITHUB_SHA" --notes-file "$NOTES" --title "$VERSION"
