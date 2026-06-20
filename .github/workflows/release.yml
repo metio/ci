@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Release
+
+# Calendar-versioned self-release: every push to main that touches a shipped
+# workflow or action cuts a tagged GitHub release, so consumers can pin a version
+# (and Renovate can bump it) instead of tracking @main. Second-precision CalVer
+# means multiple releases a day never collide. Dogfoods this repo's own actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the tag and the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0 # needs-release/calver read tags and history
+      - id: gate
+        uses: ./needs-release
+        with:
+          paths: .github/workflows calver needs-release detect-repo-type
+      - id: version
+        if: steps.gate.outputs.needed == 'true'
+        uses: ./calver
+      - name: Create release
+        if: steps.gate.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "$VERSION" --target "$GITHUB_SHA" --generate-notes --title "$VERSION"
