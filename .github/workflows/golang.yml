@@ -10,10 +10,11 @@ name: Go
 #
 #   jobs:
 #     go:
+#       name: Golang        # so checks read "Golang / test", "Golang / lint", …
 #       uses: metio/ci/.github/workflows/golang.yml@v1
 #
-# The caller keeps its own non-Go jobs and one all-green aggregate ("All Tests
-# Pass") that lists this `go` job — that aggregate is the single required check
+# The caller keeps its own non-Go jobs and one all-green aggregate (named
+# "Verify") that lists this `go` job — that aggregate is the single required check
 # (see README).
 on:
   workflow_call:
@@ -32,7 +33,7 @@ permissions:
 
 jobs:
   detect:
-    name: Detect Go environment
+    name: detect
     runs-on: ${{ inputs.runs-on }}
     outputs:
       arch-go: ${{ steps.env.outputs.arch-go }}
@@ -80,6 +81,7 @@ jobs:
           echo "k8s=$k8s"
 
   test:
+    name: test
     needs: detect
     runs-on: ${{ inputs.runs-on }}
     strategy:
@@ -103,6 +105,7 @@ jobs:
       - run: go test -v -race -shuffle=on -coverprofile=cover.out ./...
 
   lint-go:
+    name: lint
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -123,6 +126,7 @@ jobs:
           fi
 
   vulnerabilities:
+    name: vulnerabilities
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -135,6 +139,7 @@ jobs:
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   architecture:
+    name: architecture
     needs: detect
     if: needs.detect.outputs.arch-go == 'true'
     runs-on: ${{ inputs.runs-on }}

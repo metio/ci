@@ -32,12 +32,13 @@ permissions:
   contents: read
 jobs:
   go:
+    name: Golang          # checks then read "Golang / test", "Golang / lint", …
     uses: metio/ci/.github/workflows/golang.yml@main
 
   # … the project's own non-Go jobs (reuse, yaml, docs, container image, dco) …
 
-  all-tests-pass:
-    name: All Tests Pass
+  verify:
+    name: Verify
     needs: [go]            # plus the project's other jobs
     if: always()
     runs-on: ubuntu-latest
@@ -130,11 +131,38 @@ The git-cliff version and the config pin live in the action (Renovate bumps
 both), so consumers just bump the action ref — no per-repo git-cliff wiring. This
 repo's own `release.yml` uses it.
 
-## One required check: `All Tests Pass`
+### `cosign-sign-blob`
 
-Mark **only** the `all-tests-pass` job required in branch protection, then turn on
-auto-merge. It runs `if: always()`, `needs` every other job, and fails unless each
-is `success` or `skipped`. Because it's the single, fixed-name check:
+Installs cosign and keyless-signs a file, writing `<file>.bundle` (e.g. the
+checksums). Needs `permissions: { id-token: write }`:
+
+```yaml
+- uses: metio/ci/cosign-sign-blob@main
+  with:
+    file: dist/SHA256SUMS
+```
+
+### `container-release`
+
+Builds and pushes a multi-arch image (SBOM + provenance + OCI labels) and signs
+it with cosign keyless. Needs `permissions: { id-token: write, packages: write, contents: read }`:
+
+```yaml
+- id: image
+  uses: metio/ci/container-release@main
+  with:
+    image: ghcr.io/metio/jaas
+    version: ${{ steps.version.outputs.version }}
+```
+
+## One required check per layer
+
+Each workflow ends in **one** aggregate job — `Verify` for the PR gate (build,
+unit + integration tests, lint, security, docs, container scan) and, where a repo
+has it, `System Tests` for the real-cluster end-to-end layer. Mark **only** those
+aggregates required in branch protection, then turn on auto-merge. Each runs
+`if: always()`, `needs` every other job in its workflow, and fails unless each is
+`success` or `skipped`. Because each is a single, fixed-name check:
 
 - a skipped optional gate doesn't block merge;
 - the envtest matrix's per-version job names can change freely;
