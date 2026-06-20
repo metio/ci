@@ -68,14 +68,30 @@ release workflow.
 
 ### `calver`
 
-The single, org-wide version calculator (see [Versioning](#versioning)). Named
-for the scheme, so other schemes (e.g. a `semver` sibling) can be added later:
+The org's single version calculator (see [Versioning](#versioning)). Named for
+the scheme so another scheme could be added alongside it later:
 
 ```yaml
 - id: version
   uses: metio/ci/calver@main
-  # with: { prefix: v }   # for Go-module / Terraform tags
-- run: echo "${{ steps.version.outputs.version }}"   # e.g. 2026.6.20143022
+  # with: { prefix: v }       # "v" prefix for the default shape (e.g. Terraform-provider tags)
+  # with: { library: true }   # imported Go module → v1.YYYYMMDD.SSSSS
+- run: echo "${{ steps.version.outputs.version }}"   # 2026.6.20143022, or v1.20260620.52222 in library mode
+```
+
+### `detect-repo-type`
+
+Classifies the repo and emits `library` (true for an imported Go library — a Go
+module with no `package main`), which you pass straight to `calver`. So a release
+workflow is one shape for every repo:
+
+```yaml
+- id: kind
+  uses: metio/ci/detect-repo-type@main
+- id: version
+  uses: metio/ci/calver@main
+  with:
+    library: ${{ steps.kind.outputs.library }}
 ```
 
 ### `needs-release`
@@ -116,10 +132,17 @@ Second precision lifts the one-release-per-day ceiling of a date-only scheme, an
 the three leading-zero-free components keep it valid semver, so container images,
 Helm charts, and Terraform providers can all consume it.
 
-The one exception is **imported Go libraries**: a CalVer major (`2026`) is ≥ 2, so
+**Imported Go libraries** can't use that shape: a CalVer major (`2026`) is ≥ 2, so
 Go's module rules would force a `/v2026` suffix in the import path that changes
-every year. Those repos keep a conventional semver line instead (a future
-`semver` action) — hence naming this action for the scheme rather than "next".
+every year. CalVer's **library mode** keeps them under one scheme anyway —
+`v1.YYYYMMDD.SSSSS` (e.g. `v1.20260620.52222`): the major is pinned at `1` (a
+valid `v1.x.y` module, no path suffix), the padded date sits in the minor so
+versions stay ordered, and seconds-since-midnight fills the patch for second
+precision with no leading zero. Every release is therefore a *minor* bump within
+`v1`, which Renovate offers (and can auto-merge) downstream without it ever being
+gated as a major update. The trade-off: pinning the major at `1` gives up
+semver's breaking-change signal, so consumers should pin versions rather than
+assume `v1.x` is non-breaking.
 
 Until the ci repo cuts its own releases, consume its workflows and actions at
 `@main`; pin to a tag (or SHA) once releases land, with Renovate keeping the pin

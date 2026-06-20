@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Detect repo type
+description: >
+  Classify a repo so the release pipeline picks the right version shape: an
+  imported Go library (no buildable binary) must stay a valid v1.x.y module, so
+  it needs CalVer's library mode; everything else (Go apps, Terraform providers,
+  Helm charts, container apps, this repo) uses the default shape. Feeds the
+  `library` output straight into the calver action.
+
+inputs:
+  override:
+    description: Force the type ("go-library" | "go-app" | "other"); empty means auto-detect. Use for the rare library that also ships a binary.
+    required: false
+    default: ""
+
+outputs:
+  type:
+    description: '"go-library", "go-app", or "other".'
+    value: ${{ steps.detect.outputs.type }}
+  library:
+    description: '"true" when the repo is an imported Go library — pass to calver''s `library` input.'
+    value: ${{ steps.detect.outputs.library }}
+
+runs:
+  using: composite
+  steps:
+    - id: detect
+      shell: bash
+      env:
+        OVERRIDE: ${{ inputs.override }}
+      run: |
+        set -uo pipefail
+        type="$OVERRIDE"
+        if [ -z "$type" ]; then
+          if [ -f go.mod ]; then
+            # A Go module with no `package main` anywhere is an importable library;
+            # a `package main` means there is a binary, i.e. an app/provider whose
+            # tag is consumed, not its module path. vendor/ and testdata/ are
+            # excluded so a vendored or fixture main doesn't misclassify the repo.
+            if grep -rqE '^package main([[:space:]]|$)' --include='*.go' --exclude-dir=vendor --exclude-dir=testdata . 2>/dev/null; then
+              type="go-app"
+            else
+              type="go-library"
+            fi
+          else
+            type="other"
+          fi
+        fi
+        library=false
+        [ "$type" = "go-library" ] && library=true
+        echo "type=$type" >> "$GITHUB_OUTPUT"
+        echo "library=$library" >> "$GITHUB_OUTPUT"
+        echo "detected repo type: $type (library=$library)"
