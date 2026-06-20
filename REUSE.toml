@@ -5,3 +5,11 @@ version = 1
 SPDX-PackageName = "ci"
 SPDX-PackageSupplier = "Sebastian Hoß <seb@xn--ho-hia.de>"
 SPDX-PackageDownloadLocation = "https://github.com/metio/ci"
+
+# renovate.json is JSON (no comment syntax) and follows Renovate's fixed schema;
+# it extends the org-wide preset at github.com/metio/renovate-config.
+[[annotations]]
+path = "renovate.json"
+precedence = "override"
+SPDX-FileCopyrightText = "The ci Authors"
+SPDX-License-Identifier = "0BSD"

@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Release notes
+description: >
+  Install git-cliff and render release notes for a version using the org-wide
+  git-cliff config, writing them to a file the caller passes to `gh release
+  create --notes-file`. Needs a full-history checkout with tags
+  (actions/checkout with fetch-depth: 0).
+
+inputs:
+  version:
+    description: The version being released; labels the notes (git-cliff --tag).
+    required: true
+  previous:
+    description: The previous release tag; empty for the first release (full history).
+    required: false
+    default: ""
+  output:
+    description: File to write the notes to.
+    required: false
+    default: notes.md
+  config-url:
+    description: git-cliff --config-url; defaults to the org-wide config (Renovate bumps the pin).
+    required: false
+    default: "https://raw.githubusercontent.com/metio/git-cliff-config/3dc6a68c93387761e404ac28dbeb60b3d80883f6/cliff.toml"
+  tag-pattern:
+    description: Regex scoping release boundaries to this repo's tags (calver/semver are 3 numeric parts).
+    required: false
+    default: '^[0-9]+\.[0-9]+\.[0-9]+$'
+  github-token:
+    description: Token for git-cliff's remote API calls (PR/contributor enrichment).
+    required: false
+    default: ${{ github.token }}
+  git-cliff-version:
+    description: git-cliff release to install.
+    required: false
+    # renovate: datasource=github-releases depName=orhun/git-cliff
+    default: "2.10.1"
+
+outputs:
+  file:
+    description: Path to the generated notes file.
+    value: ${{ inputs.output }}
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GIT_CLIFF_VERSION: ${{ inputs.git-cliff-version }}
+        VERSION: ${{ inputs.version }}
+        PREVIOUS: ${{ inputs.previous }}
+        OUTPUT: ${{ inputs.output }}
+        CONFIG_URL: ${{ inputs.config-url }}
+        TAG_PATTERN: ${{ inputs.tag-pattern }}
+        # git-cliff reads GITHUB_TOKEN (not GH_TOKEN) for its remote API calls;
+        # without it the calls are unauthenticated (60/hr) and rate-limit out.
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        curl -fsSL "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C /tmp
+        sudo mv "/tmp/git-cliff-${GIT_CLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
+        # --tag labels the still-uncreated release so the config header renders
+        # this version; --tag-pattern scopes release boundaries to this repo's tags.
+        cliff_args=(
+          --config-url "$CONFIG_URL"
+          --tag "$VERSION"
+          --tag-pattern "$TAG_PATTERN"
+        )
+        # First release has no previous tag: omit the positional so git-cliff
+        # walks full history (a bare "HEAD" is rejected as a range).
+        [ -n "$PREVIOUS" ] && cliff_args+=("${PREVIOUS}..HEAD")
+        git-cliff "${cliff_args[@]}" > "$OUTPUT"
