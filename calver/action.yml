@@ -4,20 +4,31 @@
 name: CalVer
 description: >
   Compute the next metio calendar version with second precision, so a repo can
-  release many times a day. The format is YYYY.M.D with the UTC time-of-day
-  (HHMMSS) appended to the day — e.g. 2026.6.20143022 — which stays a 3-part,
-  leading-zero-free, monotonically increasing string, i.e. valid semver, so Go
-  modules, Helm charts, and Terraform providers can all use it.
+  release many times a day. Two shapes, both valid, monotonically increasing
+  semver:
+
+  - default (apps, charts, providers): YYYY.M.D with the UTC time-of-day appended
+    to the day, e.g. 2026.6.20143022.
+
+  - library mode (imported Go modules): v1.YYYYMMDD.SSSSS where SSSSS is
+    seconds-since-midnight UTC, e.g. v1.20260620.52222. The major is pinned at 1
+    so the import path needs no /vN suffix, the padded date in the minor keeps it
+    ordered, and seconds-since-midnight in the patch is second-precise with never
+    a leading zero.
 
 inputs:
   prefix:
-    description: Optional prefix, e.g. "v" for Go-module / Terraform tags.
+    description: Optional prefix for the default shape, e.g. "v" for Terraform-provider tags. Ignored in library mode (always v1-prefixed).
     required: false
     default: ""
+  library:
+    description: '"true" for an imported Go module — emit the v1.YYYYMMDD.SSSSS shape that stays a valid v1.x.y module version.'
+    required: false
+    default: "false"
 
 outputs:
   version:
-    description: The computed version, e.g. 2026.6.20143022 (or v2026.6.20143022 with prefix "v").
+    description: The computed version, e.g. 2026.6.20143022, or v1.20260620.52222 in library mode.
     value: ${{ steps.calc.outputs.version }}
 
 runs:
@@ -27,12 +38,24 @@ runs:
       shell: bash
       env:
         PREFIX: ${{ inputs.prefix }}
+        LIBRARY: ${{ inputs.library }}
       run: |
         set -euo pipefail
-        # %-m / %-d drop the leading zero so each component is a bare integer
-        # (no leading zeros → valid semver); %H%M%S is appended to the day, so a
-        # later time on the same day is a larger third component, and a new day or
-        # month bumps an earlier component — monotonic either way.
-        version="${PREFIX}$(date -u +%Y.%-m.%-d%H%M%S)"
+        # One timestamp for both components so a release straddling midnight can't
+        # take the date from one day and the time from the next.
+        epoch="$(date -u +%s)"
+        if [ "$LIBRARY" = "true" ]; then
+          # Pin major at 1 (valid v1.x.y module — no /vN path churn); padded
+          # YYYYMMDD in the minor stays ordered (the year's leading digit means no
+          # leading zero); seconds-since-midnight (0..86399) in the patch is
+          # second-precise and never a leading zero. epoch % 86400 == seconds
+          # since UTC midnight by definition.
+          version="v1.$(date -u -d "@$epoch" +%Y%m%d).$(( epoch % 86400 ))"
+        else
+          # %-m / %-d drop the leading zero so each component is a bare integer
+          # (valid semver); %H%M%S appended to the day makes a later same-day time
+          # a larger third component, while a new day or month bumps an earlier one.
+          version="${PREFIX}$(date -u -d "@$epoch" +%Y.%-m.%-d%H%M%S)"
+        fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
         echo "next version: $version"
