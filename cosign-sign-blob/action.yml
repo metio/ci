@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Cosign sign-blob
+description: >
+  Install cosign and keyless-sign a file (Fulcio OIDC), writing a Sigstore bundle
+  next to it as <file>.bundle. The calling job needs `permissions: { id-token:
+  write }`.
+
+inputs:
+  file:
+    description: Path to the file to sign (e.g. the SHA256SUMS).
+    required: true
+
+outputs:
+  bundle:
+    description: Path to the written signature bundle.
+    value: ${{ inputs.file }}.bundle
+
+runs:
+  using: composite
+  steps:
+    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+    - shell: bash
+      env:
+        FILE: ${{ inputs.file }}
+      # Recent cosign defaults to the Sigstore bundle format: --output-signature /
+      # --output-certificate are ignored and a single --bundle (signature +
+      # certificate + Rekor proof) is written instead. Omitting --bundle makes
+      # cosign open an empty path and fail.
+      run: |
+        set -euo pipefail
+        cosign sign-blob --yes --bundle "${FILE}.bundle" "${FILE}"

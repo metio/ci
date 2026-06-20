@@ -36,11 +36,11 @@ jobs:
       - uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23
         with:
           globs: "**/*.md"
-  all-tests-pass:
+  verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
-    name: All Tests Pass
+    name: Verify
     needs: [reuse, yaml, github-actions, markdown]
     if: always()
     runs-on: ubuntu-latest

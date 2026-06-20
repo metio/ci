@@ -1,0 +1,111 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Container release
+description: >
+  Build and push a multi-arch container image, attach SBOM + provenance and OCI
+  labels, then sign it with cosign keyless (Fulcio OIDC). The calling job needs
+  `permissions: { id-token: write, packages: write, contents: read }`.
+
+inputs:
+  image:
+    description: Image repository without a tag, e.g. ghcr.io/metio/jaas.
+    required: true
+  version:
+    description: Version tag to publish (also tagged :latest).
+    required: true
+  platforms:
+    description: Comma-separated build platforms.
+    required: false
+    default: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/riscv64,linux/s390x
+  context:
+    description: Build context.
+    required: false
+    default: .
+  file:
+    description: Path to the Dockerfile.
+    required: false
+    default: ./Dockerfile
+  build-args:
+    description: Extra build args (newline-separated); VERSION and COMMIT are always provided.
+    required: false
+    default: ""
+  title:
+    description: org.opencontainers.image.title label.
+    required: false
+    default: ${{ github.event.repository.name }}
+  registry:
+    description: Registry to log in to and push to.
+    required: false
+    default: ghcr.io
+  username:
+    description: Registry username.
+    required: false
+    default: ${{ github.actor }}
+  password:
+    description: Registry password / token.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  digest:
+    description: The pushed image digest.
+    value: ${{ steps.publish.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+    - id: buildx
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+    - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+    - id: timestamp
+      shell: bash
+      run: echo "date=$(date --rfc-3339=seconds)" >> "$GITHUB_OUTPUT"
+    - id: publish
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      with:
+        builder: ${{ steps.buildx.outputs.name }}
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        push: true
+        platforms: ${{ inputs.platforms }}
+        build-args: |
+          VERSION=${{ inputs.version }}
+          COMMIT=${{ github.sha }}
+          ${{ inputs.build-args }}
+        tags: |
+          ${{ inputs.image }}:latest
+          ${{ inputs.image }}:${{ inputs.version }}
+        labels: |
+          org.opencontainers.image.title=${{ inputs.title }}
+          org.opencontainers.image.licenses=0BSD
+          org.opencontainers.image.vendor=metio
+          org.opencontainers.image.url=https://github.com/${{ github.repository }}
+          org.opencontainers.image.documentation=https://github.com/${{ github.repository }}
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.version=${{ inputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.created=${{ steps.timestamp.outputs.date }}
+        cache-from: type=registry,ref=${{ inputs.image }}:buildcache
+        cache-to: type=registry,ref=${{ inputs.image }}:buildcache,mode=max
+        sbom: true
+        provenance: true
+    - name: Sign image (cosign keyless)
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        DIGEST: ${{ steps.publish.outputs.digest }}
+        REPO: ${{ github.repository }}
+        WORKFLOW: ${{ github.workflow }}
+        REF: ${{ github.sha }}
+      run: |
+        cosign sign --yes \
+          --annotations "repo=${REPO}" \
+          --annotations "workflow=${WORKFLOW}" \
+          --annotations "ref=${REF}" \
+          "${IMAGE}@${DIGEST}"
