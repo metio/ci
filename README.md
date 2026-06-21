@@ -131,6 +131,31 @@ The git-cliff version and the config pin live in the action (Renovate bumps
 both), so consumers just bump the action ref — no per-repo git-cliff wiring. This
 repo's own `release.yml` uses it.
 
+#### Serialize release runs (required)
+
+A release's notes cover the range since the previous tag, and that lower bound is
+read (via [`needs-release`](#needs-release)) when the run starts — before the run
+creates its own tag. Two merges in quick succession would each read the bound
+before either has tagged, so both releases get nearly identical, overlapping
+notes. `concurrency` is a per-workflow key, so it can't live in these actions —
+**every release workflow that uses `release-notes` must add it itself:**
+
+```yaml
+# top level in release.yml, alongside `on:` / `permissions:`
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+```
+
+Queueing (never cancelling the in-flight run) lets the earlier release finish and
+tag first, so the next run reads that tag and its notes start there. Moving the
+notes step later does not fix this — if two runs' release jobs interleave, the
+later-triggered one can still tag first and overlap; serializing the runs is what
+guarantees ordering. Trade-off: with `cancel-in-progress: false`, three merges
+inside one run's duration keep only the newest queued run (GitHub cancels the
+middle one), so that one calendar version is skipped — no commits are lost from
+the changelog, there's just no separate release for it.
+
 ### `cosign-sign-blob`
 
 Installs cosign and keyless-signs a file, writing `<file>.bundle` (e.g. the
