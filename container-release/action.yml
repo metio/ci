@@ -104,8 +104,27 @@ runs:
         WORKFLOW: ${{ github.workflow }}
         REF: ${{ github.sha }}
       run: |
-        cosign sign --yes \
-          --annotations "repo=${REPO}" \
-          --annotations "workflow=${WORKFLOW}" \
-          --annotations "ref=${REF}" \
-          "${IMAGE}@${DIGEST}"
+        # cosign writes the signature to ghcr.io's referrers API, which returns
+        # transient 5xx (commonly 502 Bad Gateway) under load. A single failure
+        # otherwise fails the whole release after the image is already pushed,
+        # forcing a manual re-run — so retry with exponential backoff. Re-signing
+        # is safe: on a transient upload failure no signature landed, and an
+        # extra keyless signature on a digest is still valid.
+        attempts=5
+        delay=10
+        for i in $(seq 1 "$attempts"); do
+          if cosign sign --yes \
+            --annotations "repo=${REPO}" \
+            --annotations "workflow=${WORKFLOW}" \
+            --annotations "ref=${REF}" \
+            "${IMAGE}@${DIGEST}"; then
+            exit 0
+          fi
+          if [ "$i" -lt "$attempts" ]; then
+            echo "::warning::cosign sign attempt ${i}/${attempts} failed (often a transient ghcr 5xx); retrying in ${delay}s"
+            sleep "$delay"
+            delay=$((delay * 2))
+          fi
+        done
+        echo "::error::cosign sign failed after ${attempts} attempts"
+        exit 1
