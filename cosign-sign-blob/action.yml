@@ -30,4 +30,21 @@ runs:
       # cosign open an empty path and fail.
       run: |
         set -euo pipefail
-        cosign sign-blob --yes --bundle "${FILE}.bundle" "${FILE}"
+        # Fulcio/Rekor occasionally return transient 5xx; a single failure here
+        # aborts the release after the image is already published, forcing a
+        # manual re-run (against the zero-manual policy). Retry with exponential
+        # backoff. Re-signing is safe — each attempt writes a fresh bundle.
+        attempts=5
+        delay=10
+        for i in $(seq 1 "$attempts"); do
+          if cosign sign-blob --yes --bundle "${FILE}.bundle" "${FILE}"; then
+            exit 0
+          fi
+          if [ "$i" -lt "$attempts" ]; then
+            echo "::warning::cosign sign-blob attempt ${i}/${attempts} failed (often a transient Fulcio/Rekor 5xx); retrying in ${delay}s"
+            sleep "$delay"
+            delay=$((delay * 2))
+          fi
+        done
+        echo "::error::cosign sign-blob failed after ${attempts} attempts"
+        exit 1
