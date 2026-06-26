@@ -127,6 +127,19 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
+      - name: modernize
+        run: |
+          # Flags code that could adopt newer-Go idioms available at the go.mod
+          # version (min/max, slices/maps, range-over-int, new(expr), …). Generated
+          # files are excluded: controller-gen owns zz_generated.deepcopy.go, so its
+          # maps.Copy suggestions are not actionable here.
+          findings="$(go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 \
+            | grep -vE '^go: |zz_generated\.deepcopy\.go|^exit status ' || true)"
+          if [ -n "$findings" ]; then
+            echo "::error::modernize found code that should adopt newer-Go idioms:"
+            echo "$findings"
+            exit 1
+          fi
 
   vulnerabilities:
     name: vulnerabilities
