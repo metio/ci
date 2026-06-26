@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: 0BSD
 
 # Local dev shell for linting this repo the same way CI does — reuse, yamllint,
-# actionlint (with shellcheck for run: blocks), and markdownlint. Driven by the
-# repo's .ilo.rc; run e.g. `ilo bash -c 'actionlint && reuse lint && yamllint .'`.
+# actionlint (with shellcheck for run: blocks), markdownlint, and conftest (Rego
+# convention policies). Driven by the repo's .ilo.rc; run e.g.
+# `ilo bash -c 'actionlint && reuse lint && yamllint . && conftest verify --policy policy'`.
 FROM docker.io/library/debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,3 +18,9 @@ ARG ACTIONLINT_VERSION=1.7.7
 RUN curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
       | tar -xz -C /usr/local/bin actionlint \
     && actionlint --version
+
+# renovate: datasource=github-releases depName=open-policy-agent/conftest
+ARG CONFTEST_VERSION=0.68.2
+RUN curl -fsSL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+      | tar -xz -C /usr/local/bin conftest \
+    && conftest --version

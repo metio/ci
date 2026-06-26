@@ -15,6 +15,13 @@ on:
 permissions:
   contents: write # create the tag and the release
 
+# Serialize runs: needs-release reads the previous tag before this run creates its
+# own, so two quick pushes would otherwise read the same bound and emit
+# overlapping notes. Queue (never cancel) so the earlier run tags first.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
