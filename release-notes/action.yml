@@ -23,7 +23,7 @@ inputs:
   config-url:
     description: git-cliff --config-url; defaults to the org-wide config (Renovate bumps the pin).
     required: false
-    default: "https://raw.githubusercontent.com/metio/git-cliff-config/3dc6a68c93387761e404ac28dbeb60b3d80883f6/cliff.toml"
+    default: "https://raw.githubusercontent.com/metio/git-cliff-config/c52f573b80e481e4e92c98bc68ed6bc4ee9d869e/cliff.toml"
   tag-pattern:
     description: Regex scoping release boundaries to this repo's tags (calver/semver are 3 numeric parts).
     required: false
