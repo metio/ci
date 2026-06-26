@@ -195,6 +195,32 @@ aggregates required in branch protection, then turn on auto-merge. Each runs
 
 That's the zero-maintenance auto-merge gate.
 
+## Convention policies
+
+The workflows and actions in this repo are checked against [conftest](https://www.conftest.dev/)
+policies (Rego) in [`policy/`](policy) — the org conventions a YAML linter can't
+know. The `policy` job in `verify.yml` runs them on every PR: `conftest verify`
+runs the policies' own unit tests, then `conftest test` checks the shipped files.
+Run the same locally from the dev shell with `conftest verify --policy policy`.
+
+Each rule is a `deny`, so a violation fails the gate and blocks the merge:
+
+- **SHA-pinned actions** — every `uses:` is a 40-char commit SHA (Renovate keeps
+  it current); a mutable tag or branch ref lets the ref's owner change what runs
+  after review. Local `./` and `docker://` refs are exempt.
+- **No local action refs in reusable workflows** — a `uses: ./name` in a reusable
+  workflow resolves against the *caller's* checkout, where the sibling is absent;
+  reusable workflows must use the absolute `metio/ci/<name>@<sha>` form.
+- **No untrusted run interpolation** — attacker-influenced contexts
+  (`github.event.*`, `github.head_ref`, `github.base_ref`) are never expanded
+  straight into a `run:` shell; route them through `env:` and reference the
+  variable.
+- **Workflow permissions** — every workflow declares a top-level `permissions:`
+  block instead of inheriting the broad default token scope.
+- **Release concurrency** — a release workflow using [`release-notes`](#release-notes)
+  declares a top-level `concurrency` block, so two near-simultaneous runs can't
+  read the same previous tag and emit overlapping notes.
+
 ## Versioning
 
 The [`calver`](#calver) action is the org's single version calculator:
