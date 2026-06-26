@@ -33,7 +33,7 @@ permissions:
 jobs:
   go:
     name: Golang          # checks then read "Golang / test", "Golang / lint", …
-    uses: metio/ci/.github/workflows/golang.yml@main
+    uses: metio/ci/.github/workflows/golang.yml@<sha>
 
   # … the project's own non-Go jobs (reuse, yaml, docs, container image, dco) …
 
@@ -74,7 +74,7 @@ the scheme so another scheme could be added alongside it later:
 
 ```yaml
 - id: version
-  uses: metio/ci/calver@main
+  uses: metio/ci/calver@<sha>
   # with: { prefix: v }       # "v" prefix for the default shape (e.g. Terraform-provider tags)
   # with: { library: true }   # imported Go module → v1.YYYYMMDD.SSSSS
 - run: echo "${{ steps.version.outputs.version }}"   # 2026.6.20143022, or v1.20260620.52222 in library mode
@@ -88,9 +88,9 @@ workflow is one shape for every repo:
 
 ```yaml
 - id: kind
-  uses: metio/ci/detect-repo-type@main
+  uses: metio/ci/detect-repo-type@<sha>
 - id: version
-  uses: metio/ci/calver@main
+  uses: metio/ci/calver@<sha>
   with:
     library: ${{ steps.kind.outputs.library }}
 ```
@@ -102,11 +102,11 @@ tag) or when commits since the last release touched the given paths, so a
 scheduled run no-ops on a quiet period. Needs a full-history checkout:
 
 ```yaml
-- uses: actions/checkout@v5
+- uses: actions/checkout@<sha>
   with:
     fetch-depth: 0
 - id: gate
-  uses: metio/ci/needs-release@main
+  uses: metio/ci/needs-release@<sha>
   with:
     paths: go.mod main.go internal api Dockerfile
 - if: steps.gate.outputs.needed == 'true'
@@ -120,7 +120,7 @@ git-cliff config, writing them to a file for `gh release create --notes-file`:
 
 ```yaml
 - id: notes
-  uses: metio/ci/release-notes@main
+  uses: metio/ci/release-notes@<sha>
   with:
     version: ${{ steps.version.outputs.version }}
     previous: ${{ steps.gate.outputs.last }}   # empty on the first release
@@ -162,7 +162,7 @@ Installs cosign and keyless-signs a file, writing `<file>.bundle` (e.g. the
 checksums). Needs `permissions: { id-token: write }`:
 
 ```yaml
-- uses: metio/ci/cosign-sign-blob@main
+- uses: metio/ci/cosign-sign-blob@<sha>
   with:
     file: dist/SHA256SUMS
 ```
@@ -174,7 +174,7 @@ it with cosign keyless. Needs `permissions: { id-token: write, packages: write, 
 
 ```yaml
 - id: image
-  uses: metio/ci/container-release@main
+  uses: metio/ci/container-release@<sha>
   with:
     image: ghcr.io/metio/jaas
     version: ${{ steps.version.outputs.version }}
@@ -215,9 +215,12 @@ gated as a major update. The trade-off: pinning the major at `1` gives up
 semver's breaking-change signal, so consumers should pin versions rather than
 assume `v1.x` is non-breaking.
 
-Until the ci repo cuts its own releases, consume its workflows and actions at
-`@main`; pin to a tag (or SHA) once releases land, with Renovate keeping the pin
-current.
+Consume these workflows and actions pinned to a commit SHA — first-party
+`metio/ci/*` refs included, exactly like any third-party action — with Renovate
+keeping the pins current. A mutable `@main` ref would let a change run in a
+consumer's pipeline before it was reviewed; the SHA pin plus Renovate is the
+zero-manual-work path. The examples above abbreviate the ref as `@<sha>` for
+brevity.
 
 ## License
 

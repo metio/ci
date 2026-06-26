@@ -32,7 +32,7 @@ test_allows_absolute_ref_in_reusable_workflow if {
 	doc := {
 		"on": {"workflow_call": {}},
 		"permissions": {"contents": "read"},
-		"jobs": {"build": {"steps": [{"uses": "metio/ci/calver@main"}]}},
+		"jobs": {"build": {"steps": [{"uses": "metio/ci/calver@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"}]}},
 	}
 	msgs := deny with input as doc
 	every msg in msgs {

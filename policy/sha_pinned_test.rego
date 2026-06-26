@@ -43,11 +43,23 @@ test_exempts_local_ref if {
 	}
 }
 
-test_exempts_same_org_ref if {
-	doc := {
+test_flags_first_party_tag_ref if {
+	# metio/ci/* actions are pinned to a SHA like any other; @main is not allowed.
+	bad := {
 		"on": {"workflow_call": {}},
 		"permissions": {"contents": "read"},
 		"jobs": {"build": {"steps": [{"uses": "metio/ci/calver@main"}]}},
+	}
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "not pinned to a 40-char commit SHA")
+}
+
+test_allows_first_party_sha_ref if {
+	doc := {
+		"on": {"workflow_call": {}},
+		"permissions": {"contents": "read"},
+		"jobs": {"build": {"steps": [{"uses": "metio/ci/calver@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"}]}},
 	}
 	msgs := deny with input as doc
 	every msg in msgs {
