@@ -36,12 +36,33 @@ jobs:
       - uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23
         with:
           globs: "**/*.md"
+  policy:
+    # conftest runs the metio convention policies (Rego) over the workflow and
+    # action YAML — the org rules actionlint can't know: SHA-pinned uses, no local
+    # action refs in reusable workflows, no untrusted run: interpolation, a
+    # permissions block, and release concurrency. `verify` runs the policies' own
+    # unit tests first, then `test` checks the shipped files.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install conftest
+        env:
+          # renovate: datasource=github-releases depName=open-policy-agent/conftest
+          CONFTEST_VERSION: 0.68.2
+        run: |
+          curl -fsSL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest --version
+      - name: Unit-test the policies
+        run: conftest verify --policy policy
+      - name: Check workflows and actions
+        run: conftest test --policy policy .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [reuse, yaml, github-actions, markdown]
+    needs: [reuse, yaml, github-actions, markdown, policy]
     if: always()
     runs-on: ubuntu-latest
     steps:
