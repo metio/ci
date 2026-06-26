@@ -25,6 +25,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -32,7 +33,7 @@ jobs:
       - id: gate
         uses: ./needs-release
         with:
-          paths: .github/workflows calver needs-release detect-repo-type
+          paths: .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes policy policy-check
       - id: version
         if: steps.gate.outputs.needed == 'true'
         uses: ./calver

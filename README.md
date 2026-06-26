@@ -220,6 +220,33 @@ Each rule is a `deny`, so a violation fails the gate and blocks the merge:
 - **Release concurrency** — a release workflow using [`release-notes`](#release-notes)
   declares a top-level `concurrency` block, so two near-simultaneous runs can't
   read the same previous tag and emit overlapping notes.
+- **Job timeouts** — every job declares `timeout-minutes`, so a hung step can't
+  hold a runner for GitHub's 360-minute default. Jobs that call a reusable
+  workflow are exempt (GitHub rejects `timeout-minutes` there).
+
+### Run the policies in another repo
+
+The [`policy-check`](policy-check) composite action carries the policies with it,
+so any metio repo gets the same checks with two lines — check out the repo, then
+run the action:
+
+```yaml
+# in a project's verify.yml
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@<sha>
+      - uses: metio/ci/policy-check@<sha>
+        # with: { paths: .github/workflows }   # default: workflows + every action.yml
+```
+
+It installs conftest, runs the policy unit tests, then checks the repo's
+`.github/workflows` and every `action.yml`/`action.yaml`. Add the `policy` job to
+the repo's [`Verify`](#one-required-check-per-layer) aggregate so a violation
+blocks the merge. The policies live at the action's pinned ref, so bumping the
+`policy-check` pin (Renovate does this) updates the rules too.
 
 ## Versioning
 

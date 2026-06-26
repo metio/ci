@@ -12,10 +12,13 @@ import rego.v1
 compliant_workflow := {
 	"on": {"pull_request": {"branches": ["main"]}},
 	"permissions": {"contents": "read"},
-	"jobs": {"build": {"steps": [
-		{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
-		{"run": "go build ./..."},
-	]}},
+	"jobs": {"build": {
+		"timeout-minutes": 10,
+		"steps": [
+			{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+			{"run": "go build ./..."},
+		],
+	}},
 }
 
 compliant_action := {"runs": {"using": "composite", "steps": [

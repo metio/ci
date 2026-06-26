@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Policy check
+description: >
+  Run the metio CI convention policies (conftest/Rego) over the calling repo's
+  workflows and composite actions. The policies travel with this action — pin it
+  to the same ref as the rest of metio/ci and Renovate keeps both current. The
+  calling job must check out its own repo first (actions/checkout).
+
+inputs:
+  paths:
+    description: >
+      Space-separated paths to check. Defaults to .github/workflows plus every
+      action.yml/action.yaml in the repo.
+    required: false
+    default: ""
+  conftest-version:
+    description: conftest release to install.
+    required: false
+    # renovate: datasource=github-releases depName=open-policy-agent/conftest
+    default: "0.68.2"
+
+runs:
+  using: composite
+  steps:
+    - name: Install conftest
+      shell: bash
+      env:
+        CONFTEST_VERSION: ${{ inputs.conftest-version }}
+      run: |
+        set -euo pipefail
+        curl -fsSL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin conftest
+        conftest --version
+    - name: Check workflows and actions
+      shell: bash
+      env:
+        # The policies sit beside this action in the metio/ci checkout, so they
+        # always match the ref the action was pinned to.
+        POLICY_DIR: ${{ github.action_path }}/../policy
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -euo pipefail
+        policy_dir="$(realpath "$POLICY_DIR")"
+        # The policies' own unit tests run first, so a broken rule fails loudly
+        # instead of silently passing the file checks.
+        conftest verify --policy "$policy_dir"
+        if [ -n "$PATHS" ]; then
+          read -r -a targets <<< "$PATHS"
+        else
+          targets=()
+          [ -d .github/workflows ] && targets+=(.github/workflows)
+          while IFS= read -r f; do
+            targets+=("$f")
+          done < <(find . -path ./.git -prune -o \( -name action.yml -o -name action.yaml \) -print)
+        fi
+        if [ "${#targets[@]}" -eq 0 ]; then
+          echo "::warning::policy-check found no workflows or actions to check"
+          exit 0
+        fi
+        conftest test --policy "$policy_dir" "${targets[@]}"

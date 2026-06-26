@@ -19,6 +19,12 @@ the versioning live in one place. There is no application code here.
 - `calver/action.yml` — compute the next calendar version.
 - `needs-release/action.yml` — decide whether a release is warranted.
 - `detect-repo-type/action.yml` — classify a repo to drive the above.
+- `release-notes/`, `container-release/`, `cosign-sign-blob/` — release-pipeline
+  composite actions (git-cliff notes, multi-arch image + cosign, blob signing).
+- `policy/` — conftest/Rego convention policies (`*.rego`) plus their unit tests
+  (`*_test.rego`); see `## policy`.
+- `policy-check/action.yml` — composite action that runs `policy/` over a
+  caller's repo, so other org repos get the same checks.
 
 Add more languages as sibling reusable workflows (`rust.yml`, `hugo.yml`, …) and
 more pipeline steps as sibling composite actions, following the same shape.
@@ -84,6 +90,26 @@ that also ships a binary. Feed its `library` output straight into `calver`.
 release, and it returns `needed=true` on a first release (no tag) or when commits
 since the last tag touched the given `paths`. Callers must checkout with
 `fetch-depth: 0` so tags and history are present.
+
+## policy
+
+`policy/` holds conftest/Rego policies encoding the org conventions a YAML linter
+can't know — SHA-pinned `uses:`, no local action refs in reusable workflows, no
+untrusted context interpolated into `run:`, a top-level `permissions:` block,
+release `concurrency`, and per-job `timeout-minutes`. Each rule is a `deny`
+(fail-the-gate) with a `*_test.rego` beside it; `conftest verify` runs those unit
+tests and `conftest test` checks the files. Every input is one parsed YAML file,
+so `lib.rego` classifies it (workflow vs composite action; the `on:` key folds to
+the boolean `true` under the conftest YAML loader) and exposes its `uses:`/`run:`
+steps. New rules go in their own `<name>.rego` + `<name>_test.rego`; keep the
+shared fixtures in `fixtures_test.rego` convention-clean so the "good case" tests
+stay meaningful.
+
+The policies are consumed two ways: the `policy` job in `verify.yml` dogfoods the
+`policy-check` action over this repo, and other org repos call
+`metio/ci/policy-check@<sha>` to check themselves. `policy-check` finds the
+policies beside itself via `$GITHUB_ACTION_PATH/../policy`, so they always match
+the pinned ref — no second checkout, no ref drift.
 
 ## Conventions & traps
 
