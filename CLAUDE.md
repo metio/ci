@@ -87,8 +87,11 @@ since the last tag touched the given `paths`. Callers must checkout with
 
 ## Conventions & traps
 
-- **Consume at `@main`** until this repo cuts its own (CalVer) releases; then pin
-  to a tag/SHA with Renovate keeping it current.
+- **Pin every consumed action to a commit SHA** — first-party `metio/ci/*` refs
+  included, like any third-party action — and let Renovate keep the pins current
+  (zero manual work). Never track a mutable `@main`/tag ref. Same-repo `./` refs
+  are the only exception: they're our own code in the same checkout, with nothing
+  for Renovate to pin.
 - **Never reference a sibling action as `./name` inside a reusable workflow** — a
   local path resolves against the *caller's* checkout, not this repo. Use the
   absolute `metio/ci/<name>@<ref>` form, and keep that ref aligned with how the
