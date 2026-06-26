@@ -38,11 +38,11 @@ envtest-backed tests and a plain library use the identical call (no `with:`).
 - `lint-go` (vet, staticcheck, gosec, gofumpt) and `vulnerabilities`
   (govulncheck) always run — universal for any Go module.
 
-**The `All Tests Pass` aggregate lives in the *caller*, not here.** A reusable
+**The `Verify` aggregate lives in the *caller*, not here.** A reusable
 workflow only knows its own jobs; the single required check must `needs` the
 caller's other jobs (reuse, docs, container image, …) too, so it can't be
 centralized. Each repo's `verify.yml` ends in an `if: always()` aggregate named
-`All Tests Pass` that fails unless every `needs` result is `success` or
+`Verify` that fails unless every `needs` result is `success` or
 `skipped`; that one job is the only required check (see README).
 
 ## Versioning (calver / detect-repo-type)
