@@ -249,6 +249,17 @@ Each rule is a `deny`, so a violation fails the gate and blocks the merge:
 - **Job timeouts** — every job declares `timeout-minutes`, so a hung step can't
   hold a runner for GitHub's 360-minute default. Jobs that call a reusable
   workflow are exempt (GitHub rejects `timeout-minutes` there).
+- **Flake-owned toolchain** — in a repo that ships a `flake.nix` at its root
+  (`policy-check` detects it and passes the fact to the policies), workflow
+  tools must come from the flake's devShell: setup actions (`actions/setup-go`,
+  `azure/setup-helm`, …), marketplace lint actions (`crate-ci/typos`,
+  `fsfe/reuse-action`, …), and ad-hoc installers in `run:` blocks
+  (`pipx install`, `go install …@…`) are denied, because each pins a tool
+  version outside `flake.lock` and lets CI drift from the local shell. The
+  nix installer and the store cache stay allowed (they bootstrap the
+  devShell), and shared metio/ci composites own their internal tool pins.
+  Repos without a flake are unaffected. One rule is unconditional: a job that
+  runs `nix develop` must have a step installing nix first.
 
 ### Run the policies in another repo
 

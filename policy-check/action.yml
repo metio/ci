@@ -59,4 +59,10 @@ runs:
           echo "::warning::policy-check found no workflows or actions to check"
           exit 0
         fi
-        conftest test --policy "$policy_dir" "${targets[@]}"
+        # Repo-shape facts for policies that apply conditionally — the
+        # nix-flake rules fire only when the repo ships a flake devShell.
+        data_dir="$(mktemp -d)"
+        has_flake=false
+        [ -f flake.nix ] && has_flake=true
+        printf '{"repo":{"has_flake":%s}}\n' "$has_flake" > "$data_dir/repo.json"
+        conftest test --policy "$policy_dir" --data "$data_dir" "${targets[@]}"
