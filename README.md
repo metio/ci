@@ -113,6 +113,18 @@ scheduled run no-ops on a quiet period. Needs a full-history checkout:
   run: echo "releasing ${{ steps.gate.outputs.last }} → next"
 ```
 
+In a monorepo releasing several units with prefixed tags (`myapp-2026.7.1…`),
+scope the boundary to one unit's tags with `tag-match` — otherwise another
+unit's newer tag hides this unit's pending changes:
+
+```yaml
+- id: gate
+  uses: metio/ci/needs-release@<sha>
+  with:
+    paths: units/myapp
+    tag-match: myapp-*
+```
+
 ### `release-notes`
 
 Installs git-cliff and renders release notes for a version using the org-wide
@@ -130,6 +142,20 @@ git-cliff config, writing them to a file for `gh release create --notes-file`:
 The git-cliff version and the config pin live in the action (Renovate bumps
 both), so consumers just bump the action ref — no per-repo git-cliff wiring. This
 repo's own `release.yml` uses it.
+
+For one unit of a monorepo, scope the notes to the unit's files
+(`include-paths`) and its tag lineage (`tag-pattern`) so another unit's
+commits and tags never leak into this unit's changelog:
+
+```yaml
+- id: notes
+  uses: metio/ci/release-notes@<sha>
+  with:
+    version: myapp-${{ steps.version.outputs.version }}
+    previous: ${{ steps.gate.outputs.last }}
+    include-paths: units/myapp/**
+    tag-pattern: ^myapp-
+```
 
 #### Serialize release runs (required)
 

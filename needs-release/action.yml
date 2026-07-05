@@ -6,13 +6,19 @@ description: >
   Decide whether a release is warranted: true when there is no prior release, or
   when commits since the last release touched any of the given paths. Lets a
   scheduled release workflow no-op on a quiet period instead of cutting an empty
-  release. Requires a full-history checkout with tags (actions/checkout with
-  fetch-depth: 0).
+  release. In a monorepo releasing several units with prefixed tags, scope the
+  boundary to one unit's tags via tag-match — otherwise another unit's newer tag
+  would hide this unit's pending changes. Requires a full-history checkout with
+  tags (actions/checkout with fetch-depth: 0).
 
 inputs:
   paths:
     description: Space-separated paths that, when changed since the last release, warrant a release (e.g. "go.mod main.go internal api").
     required: true
+  tag-match:
+    description: Optional glob selecting which tags count as this unit's releases (git describe --match), e.g. "myapp-*" in a monorepo with per-unit tag prefixes. Empty considers every tag.
+    required: false
+    default: ""
 
 outputs:
   needed:
@@ -29,10 +35,14 @@ runs:
       shell: bash
       env:
         PATHS: ${{ inputs.paths }}
+        TAG_MATCH: ${{ inputs.tag-match }}
       run: |
         set -uo pipefail
-        # Last release = most recent tag reachable from HEAD. No tag → first release.
-        last="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+        # Last release = most recent tag reachable from HEAD, scoped to this
+        # unit's tags when tag-match is given. No tag → first release.
+        describe_args=(--tags --abbrev=0)
+        [ -n "$TAG_MATCH" ] && describe_args+=(--match "$TAG_MATCH")
+        last="$(git describe "${describe_args[@]}" 2>/dev/null || true)"
         echo "last=$last" >> "$GITHUB_OUTPUT"
         if [ -z "$last" ]; then
           echo "needed=true" >> "$GITHUB_OUTPUT"
