@@ -33,7 +33,7 @@ jobs:
       - id: gate
         uses: ./needs-release
         with:
-          paths: .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes policy policy-check
+          paths: .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes nix-devshell policy policy-check
       - id: version
         if: steps.gate.outputs.needed == 'true'
         uses: ./calver

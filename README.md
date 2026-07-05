@@ -206,6 +206,30 @@ it with cosign keyless. Needs `permissions: { id-token: write, packages: write, 
     version: ${{ steps.version.outputs.version }}
 ```
 
+### `nix-devshell`
+
+Installs Nix and caches the `/nix` store (keyed on `flake.nix`/`flake.lock`), so
+a repo whose toolchain is a nix flake runs every gate through the flake's devShell
+and CI resolves the exact versions in `flake.lock`. Check out the repo first, then
+run each gate with `nix develop --command …`:
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@<sha>
+      - uses: metio/ci/nix-devshell@<sha>
+      - run: nix develop --command <gate>
+```
+
+The store is downloaded only when the flake pin changes; every other run restores
+it in seconds. The two upstream refs it pins (the Nix installer and the store
+cache) are Renovate-bumped like any other action. Pair it with the
+[`policy-check`](#run-the-policies-in-another-repo) flake rules, which require a
+flake repo's tools to come from the devShell rather than setup/marketplace actions.
+
 ## One required check per layer
 
 Each workflow ends in **one** aggregate job — `Verify` for the PR gate (build,
