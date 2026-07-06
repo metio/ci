@@ -17,9 +17,12 @@ More languages/tools follow the same shape.
 
 ### Golang
 
-The Go pipeline is **zero-config**: a `detect` job inspects the repo and the
-optional gates skip themselves, so a controller with envtest-backed tests and a
-plain library use the identical call.
+The Go pipeline is **flake-driven and zero-config**: every gate runs through the
+calling repo's nix flake devShell (`nix develop --command`), so CI resolves the
+exact tool versions in `flake.lock` — identical to a local run — and a `detect`
+job skips the architecture gate when there's no `arch-go.yml`. A controller with
+envtest-backed tests and a plain library use the identical call. The repo must
+ship a `flake.nix` that provides `go` plus the correctness tools (see below).
 
 ```yaml
 # .github/workflows/verify.yml in a Go project
@@ -50,17 +53,14 @@ jobs:
           [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
 ```
 
-What `detect` decides, with no inputs:
-
-- **envtest** — on when any `*_test.go` imports
-  `sigs.k8s.io/controller-runtime/pkg/envtest`. The `test` job then runs over the
-  newest Kubernetes minors envtest supports (discovered at runtime) with
-  `KUBEBUILDER_ASSETS` set; off elsewhere, tests run once.
-- **arch-go** — the `architecture` job runs only when an `arch-go.yml` is present;
-  otherwise it skips cleanly (no runner spun up).
-
-Inputs (`go-version`, `runs-on`) exist for the rare override; most callers need
-none.
+The flake devShell provides every tool: `go`, `staticcheck`, `gosec`, `gofumpt`,
+`govulncheck`, `arch-go`, `modernize`, and — for a controller — `KUBEBUILDER_ASSETS`
+(assemble it from nixpkgs' `etcd` + `kube-apiserver` + `kubectl`), so the envtest
+suite runs offline against the flake-pinned Kubernetes; the multi-version envtest
+matrix is gone (its coverage lives in the kind smoke gate). The one thing `detect`
+still decides: the `architecture` job runs only when an `arch-go.yml` is present;
+otherwise it skips cleanly. The sole input, `runs-on`, exists for the rare runner
+override.
 
 ## Actions
 

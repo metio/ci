@@ -3,10 +3,14 @@
 
 name: Go
 
-# Reusable Go pipeline for metio projects. A `detect` job inspects the repo, and
-# the optional gates skip themselves via job-level `if` — so any Go repo adopts
-# it with no inputs at all, whether it's a controller with envtest-backed tests
-# or a plain library:
+# Reusable Go pipeline for metio projects. Every gate runs through the calling
+# repo's nix flake devShell (`nix develop --command`), so CI resolves the exact
+# tool versions in flake.lock — identical to a local run. A `detect` job skips
+# the optional architecture gate when the repo has no arch-go.yml. The caller
+# needs only a flake.nix that provides go + the correctness tools (go vet,
+# staticcheck, gosec, gofumpt, govulncheck, arch-go, modernize) and, for
+# controllers, KUBEBUILDER_ASSETS in the devShell (assembled from nixpkgs) so
+# the envtest suite runs offline against the flake-pinned Kubernetes.
 #
 #   jobs:
 #     go:
@@ -14,15 +18,11 @@ name: Go
 #       uses: metio/ci/.github/workflows/golang.yml@v1
 #
 # The caller keeps its own non-Go jobs and one all-green aggregate (named
-# "Verify") that lists this `go` job — that aggregate is the single required check
-# (see README).
+# "Verify") that lists this `go` job — that aggregate is the single required
+# check (see README). A Go repo that consumes this MUST ship a flake.nix.
 on:
   workflow_call:
     inputs:
-      go-version:
-        description: 'Go for the detect job (build/test/lint read go.mod): "stable", "oldstable", or e.g. "1.24.x".'
-        type: string
-        default: stable
       runs-on:
         description: Runner label for every job.
         type: string
@@ -38,73 +38,29 @@ jobs:
     timeout-minutes: 10
     outputs:
       arch-go: ${{ steps.env.outputs.arch-go }}
-      envtest: ${{ steps.env.outputs.envtest }}
-      k8s: ${{ steps.versions.outputs.k8s }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - id: env
-        # Detect which optional gates this repo needs from its own files, so the
-        # downstream jobs skip themselves rather than spin up a runner to no-op.
-        # arch-go.yml presence is unambiguous; envtest is detected by its import
-        # in test files (you only import it when you actually run it, so this
-        # won't false-negative on a transitive dependency).
+        # The architecture gate skips itself rather than spin up a runner to
+        # no-op; arch-go.yml presence is unambiguous.
         run: |
           archgo=false
           if [ -f arch-go.yml ] || [ -f .arch-go.yml ]; then archgo=true; fi
-          envtest=false
-          if grep -rqE 'sigs\.k8s\.io/controller-runtime/pkg/envtest' --include='*_test.go' . 2>/dev/null; then envtest=true; fi
           echo "arch-go=$archgo" >> "$GITHUB_OUTPUT"
-          echo "envtest=$envtest" >> "$GITHUB_OUTPUT"
-          echo "detected: arch-go=$archgo envtest=$envtest"
-      - if: steps.env.outputs.envtest == 'true'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version: ${{ inputs.go-version }}
-      - id: versions
-        # When envtest is used: the newest 4 Kubernetes minors (latest patch each)
-        # that envtest publishes apiserver+etcd binaries for, discovered at runtime
-        # so a new release is tested automatically — a minor envtest can't run
-        # surfaces as a failure, not silent staleness. Otherwise a single sentinel
-        # runs the test job exactly once.
-        run: |
-          set -uo pipefail
-          if [ "${{ steps.env.outputs.envtest }}" != "true" ]; then
-            echo 'k8s=["none"]' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          k8s=$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest list 2>/dev/null \
-            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
-            | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
-            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -4 \
-            | jq -R . | jq -cs . 2>/dev/null || echo '[]')
-          [ "$(jq 'length' <<<"$k8s" 2>/dev/null || echo 0)" -gt 0 ] || k8s='["1.33.0"]'
-          echo "k8s=$k8s" >> "$GITHUB_OUTPUT"
-          echo "k8s=$k8s"
+          echo "detected: arch-go=$archgo"
 
   test:
     name: test
-    needs: detect
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        k8s: ${{ fromJson(needs.detect.outputs.k8s) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go build ./...
-      - if: needs.detect.outputs.envtest == 'true'
-        name: Set up envtest assets (Kubernetes ${{ matrix.k8s }})
-        # Installs the kube-apiserver + etcd bundle so the envtest-backed suite
-        # runs; without KUBEBUILDER_ASSETS those tests skip.
-        run: |
-          assets=$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use ${{ matrix.k8s }} -p path)
-          echo "KUBEBUILDER_ASSETS=$assets" >> "$GITHUB_ENV"
-      - run: go test -v -race -shuffle=on -coverprofile=cover.out ./...
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command go build ./...
+      # KUBEBUILDER_ASSETS comes from the devShell, so an envtest-backed suite
+      # runs against the flake-pinned Kubernetes; multi-version coverage lives in
+      # the caller's kind smoke gate.
+      - run: nix develop --command go test -v -race -shuffle=on -coverprofile=cover.out ./...
 
   lint-go:
     name: lint
@@ -112,16 +68,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go vet ./...
-      - run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
-      - run: go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command go vet ./...
+      - run: nix develop --command staticcheck ./...
+      - run: nix develop --command gosec ./...
       - name: gofumpt formatting
         run: |
-          unformatted="$(go run mvdan.cc/gofumpt@latest -l .)"
+          unformatted="$(nix develop --command gofumpt -l .)"
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofumpt-formatted:"
             echo "$unformatted"
@@ -133,7 +86,7 @@ jobs:
           # version (min/max, slices/maps, range-over-int, new(expr), …). Generated
           # files are excluded: controller-gen owns zz_generated.deepcopy.go, so its
           # maps.Copy suggestions are not actionable here.
-          findings="$(go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 \
+          findings="$(nix develop --command modernize ./... 2>&1 \
             | grep -vE '^go: |zz_generated\.deepcopy\.go|^exit status ' || true)"
           if [ -n "$findings" ]; then
             echo "::error::modernize found code that should adopt newer-Go idioms:"
@@ -147,13 +100,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
       # Hard gate: a reachable-from-code advisory blocks merge. The fix is usually
       # bumping the `toolchain` directive in go.mod (stdlib) or `go get -u` (deps).
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: nix develop --command govulncheck ./...
 
   architecture:
     name: architecture
@@ -163,8 +113,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go run github.com/arch-go/arch-go@latest
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command arch-go
