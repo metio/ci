@@ -106,3 +106,23 @@ test_allows_nix_develop_with_devshell_composite if {
 		not contains(msg, "no step installs nix")
 	}
 }
+
+# The nix-devshell repo dogfoods its root action via `uses: ./`.
+test_allows_nix_develop_with_root_local_action if {
+	doc := {
+		"on": {"pull_request": {"branches": ["main"]}},
+		"permissions": {"contents": "read"},
+		"jobs": {"lint": {
+			"timeout-minutes": 10,
+			"steps": [
+				{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+				{"uses": "./"},
+				{"run": "nix develop --command reuse lint"},
+			],
+		}},
+	}
+	msgs := deny with input as doc
+	every msg in msgs {
+		not contains(msg, "no step installs nix")
+	}
+}

@@ -71,6 +71,10 @@ provides_nix(step) if endswith(uses_path(step.uses), "nix-devshell")
 
 provides_nix(step) if startswith(step.uses, "DeterminateSystems/nix-installer-action@")
 
+# The nix-devshell repo dogfoods its own composite: its root action IS the
+# installer, consumed via `uses: ./`. A bare local root reference provides nix.
+provides_nix(step) if step.uses == "./"
+
 job_provides_nix(job) if {
 	some step in job.steps
 	step.uses
