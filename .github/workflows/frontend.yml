@@ -1,0 +1,252 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Frontend
+
+# Reusable Vite/React (Node) pipeline for metio projects. Every gate runs through
+# the calling repo's nix flake devShell (`nix develop --command`), so CI resolves
+# the exact tool versions in flake.lock — node, chromium (via playwright-driver),
+# and the shared metio lint gate (reuse, typos, yamllint, actionlint,
+# markdownlint) — identical to a local run. A `detect` job reads the caller's
+# package.json scripts (and lighthouserc.json) and skips the gates a repo does
+# not define, so one workflow fits projects that ship different subsets.
+#
+#   jobs:
+#     frontend:
+#       name: Frontend      # so checks read "Frontend / build", "Frontend / lint", …
+#       uses: metio/ci/.github/workflows/frontend.yml@v1
+#       with:
+#         node-options: --dns-result-order=ipv4first
+#         build-command: PLINKY_LOCALE=en npm run build
+#
+# The caller keeps its own repo-specific jobs and one all-green aggregate (named
+# "Verify") that lists this `frontend` job — that aggregate is the single
+# required check (see README). A repo that consumes this MUST ship a flake.nix
+# whose devShell provides node, chromium (PLAYWRIGHT_BROWSERS_PATH →
+# playwright-driver.browsers), and the shared lint gate.
+#
+# The convention is script names: a gate runs when the caller defines the
+# matching npm script (test:browser, coverage, size, lint, knip, a11y:light,
+# a11y:dark) or, for lighthouse, a lighthouserc.json. Missing scripts skip.
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+      node-options:
+        description: >
+          Value for NODE_OPTIONS across every job (e.g.
+          --dns-result-order=ipv4first when a prerender server binds localhost).
+        type: string
+        default: ""
+      build-command:
+        description: >
+          The build invocation for the build/size and lighthouse jobs. Override
+          to pass build-time env (e.g. a single-locale build for a per-visitor
+          bundle-size measurement).
+        type: string
+        default: npm run build
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: ${{ inputs.node-options }}
+  # Expanded by the run-step shell into the nix command; `inputs.*` is caller-
+  # controlled (trusted), not an attacker-influenced context.
+  BUILD_COMMAND: ${{ inputs.build-command }}
+
+jobs:
+  detect:
+    name: detect
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    outputs:
+      typecheck: ${{ steps.env.outputs.typecheck }}
+      test: ${{ steps.env.outputs.test }}
+      build: ${{ steps.env.outputs.build }}
+      size: ${{ steps.env.outputs.size }}
+      test_browser: ${{ steps.env.outputs.test_browser }}
+      coverage: ${{ steps.env.outputs.coverage }}
+      lint: ${{ steps.env.outputs.lint }}
+      knip: ${{ steps.env.outputs.knip }}
+      a11y_light: ${{ steps.env.outputs.a11y_light }}
+      a11y_dark: ${{ steps.env.outputs.a11y_dark }}
+      lighthouse: ${{ steps.env.outputs.lighthouse }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - id: env
+        # jq ships on the runner, so detection needs no devShell — it only reads
+        # package.json. Each optional gate below keys off one of these flags.
+        run: |
+          has_script() { jq -e --arg s "$1" '.scripts[$s] // empty' package.json >/dev/null 2>&1; }
+          emit() { echo "$1=$2" >> "$GITHUB_OUTPUT"; echo "detected: $1=$2"; }
+          for script in typecheck test build size test:browser coverage lint knip a11y:light a11y:dark; do
+            key=${script//:/_}
+            if has_script "$script"; then emit "$key" true; else emit "$key" false; fi
+          done
+          if [ -f lighthouserc.json ] || [ -f lighthouserc.js ]; then emit lighthouse true; else emit lighthouse false; fi
+
+  build:
+    name: build
+    needs: detect
+    if: needs.detect.outputs.build == 'true' || needs.detect.outputs.test == 'true' || needs.detect.outputs.typecheck == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - if: needs.detect.outputs.typecheck == 'true'
+        run: nix develop --command npm run typecheck
+      - if: needs.detect.outputs.test == 'true'
+        run: nix develop --command npm test
+      # The build feeds the size budget, so it runs whenever either is present.
+      - if: needs.detect.outputs.build == 'true' || needs.detect.outputs.size == 'true'
+        run: nix develop --command bash -c "$BUILD_COMMAND"
+      - if: needs.detect.outputs.size == 'true'
+        name: Check bundle size
+        run: nix develop --command npm run size
+
+  browser:
+    name: browser
+    needs: detect
+    if: needs.detect.outputs.test_browser == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      # Chromium comes from the flake (PLAYWRIGHT_BROWSERS_PATH → the nix-store
+      # playwright-driver browsers), so no `playwright install --with-deps` and no
+      # registry image. The caller holds its `playwright` npm version to the
+      # driver's.
+      - run: nix develop --command npm run test:browser
+
+  coverage:
+    name: coverage
+    needs: detect
+    if: needs.detect.outputs.coverage == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command npm run coverage
+
+  lint:
+    name: lint
+    needs: detect
+    if: needs.detect.outputs.lint == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command npm run lint
+
+  knip:
+    name: knip
+    needs: detect
+    if: needs.detect.outputs.knip == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command npm run knip
+
+  accessibility-light:
+    name: accessibility-light
+    needs: detect
+    if: needs.detect.outputs.a11y_light == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command npm run a11y:light
+
+  accessibility-dark:
+    name: accessibility-dark
+    needs: detect
+    if: needs.detect.outputs.a11y_dark == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command npm run a11y:dark
+
+  lighthouse:
+    name: lighthouse
+    needs: detect
+    if: needs.detect.outputs.lighthouse == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command npm ci
+      - run: nix develop --command bash -c "$BUILD_COMMAND"
+      # The action brings its own Chrome and node, so it runs on the runner rather
+      # than through the devShell; it only reads the built ./build/client.
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
+        with:
+          configPath: ./lighthouserc.json
+          temporaryPublicStorage: true
+
+  reuse:
+    name: reuse
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command reuse lint
+
+  typos:
+    name: typos
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command typos
+
+  yaml:
+    name: yaml
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command yamllint .
+
+  github-actions:
+    name: github-actions
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      # actionlint shells out to shellcheck (in the devShell) for run: blocks.
+      - run: nix develop --command actionlint
+
+  markdown:
+    name: markdown
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - run: nix develop --command markdownlint-cli2 "**/*.md"
