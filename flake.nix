@@ -110,6 +110,24 @@
           markdownlint-cli2
         ];
 
+      # One canonical `ci-<tool>` command per shared lint tool, wrapping the EXACT
+      # CI invocation (e.g. `reuse lint`, `markdownlint-cli2 "**/*.md"`). Defined
+      # once here so every repo inherits them: a workflow runs the gate with
+      # `nix develop --command ci-reuse`, and a developer runs the same name bare
+      # inside `nix develop` — the invocation lives in one place instead of being
+      # copied into each workflow's YAML and each repo's flake. The `ci-` prefix
+      # leaves the raw tool free for its other modes (e.g. `reuse annotate`); the
+      # wrapper pins only the CI mode. Tools are referenced by store path so the
+      # wrapper resolves the flake-pinned binary regardless of PATH.
+      lintCommands = pkgs: [
+        (pkgs.writeShellScriptBin "ci-reuse" ''exec ${pkgs.reuse}/bin/reuse lint "$@"'')
+        (pkgs.writeShellScriptBin "ci-typos" ''exec ${pkgs.typos}/bin/typos "$@"'')
+        (pkgs.writeShellScriptBin "ci-yaml" ''exec ${pkgs.yamllint}/bin/yamllint . "$@"'')
+        # actionlint finds shellcheck on PATH, which the devShell provides.
+        (pkgs.writeShellScriptBin "ci-actionlint" ''exec ${pkgs.actionlint}/bin/actionlint "$@"'')
+        (pkgs.writeShellScriptBin "ci-markdown" ''exec ${pkgs.markdownlint-cli2}/bin/markdownlint-cli2 "**/*.md" "$@"'')
+      ];
+
       # Assemble a repo's devShell: the shared lint gate plus the repo's own
       # tools and gate commands, any extra env vars, its command menu, and any
       # always-run setup. `menu` prints only for an interactive shell — otherwise
@@ -127,10 +145,11 @@
         pkgs.mkShell (
           env
           // {
-            packages = lintTools pkgs ++ packages;
+            packages = lintTools pkgs ++ lintCommands pkgs ++ packages;
             shellHook = ''
               if [ -t 1 ]; then
                 echo "metio devshell — shared lint gate: reuse, typos, yamllint, actionlint, markdownlint-cli2"
+                echo "  run any the CI way: ci-reuse, ci-typos, ci-yaml, ci-actionlint, ci-markdown"
                 ${menu}
               fi
             ''
@@ -144,6 +163,7 @@
         inherit
           mkDevShell
           lintTools
+          lintCommands
           helm-schema
           arch-go
           modernize

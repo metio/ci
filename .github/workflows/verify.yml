@@ -14,14 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
-      - run: nix develop --command reuse lint
+      - run: nix develop --command ci-reuse
   yaml:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
-      - run: nix develop --command yamllint .
+      - run: nix develop --command ci-yaml
   github-actions:
     # actionlint shells out to shellcheck for `run:` blocks; a failing finding
     # blocks the merge across the whole tree (the reusable workflow and every
@@ -31,14 +31,14 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
-      - run: nix develop --command actionlint
+      - run: nix develop --command ci-actionlint
   markdown:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
-      - run: nix develop --command markdownlint-cli2 "**/*.md"
+      - run: nix develop --command ci-markdown
   policy:
     # Dogfood the policy-check action this repo ships: it runs the conftest
     # convention policies (SHA-pinned uses, no local refs in reusable workflows,
