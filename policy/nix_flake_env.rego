@@ -34,15 +34,20 @@ flake_bypassing_actions := {
 	"fsfe/reuse-action",
 }
 
+# Only workflows are checked (is_workflow), not composite action definitions: a
+# composite action that installs a tool is a shared tool *provider* (e.g. the
+# container-release / cosign-sign-blob actions install cosign for consumers), not
+# a repo bypassing its own devShell. The rule governs how a repo runs its gates.
 deny contains msg if {
 	repo_has_flake
+	is_workflow
 	some entry in action_uses
 	uses_path(entry.uses) in flake_bypassing_actions
 	msg := sprintf("%s uses %q, which bypasses the flake devShell; add the tool to flake.nix and run it via `nix develop --command`", [entry.where, entry.uses])
 }
 
 # Ad-hoc installers in run: blocks — each pins a tool version flake.lock does
-# not govern.
+# not govern. Workflows only, for the same reason as above.
 installer_patterns := {
 	`pipx install`,
 	`go install [^ ]+@`,
@@ -53,6 +58,7 @@ installer_patterns := {
 
 deny contains msg if {
 	repo_has_flake
+	is_workflow
 	some entry in run_steps
 	some pattern in installer_patterns
 	regex.match(pattern, entry.run)
