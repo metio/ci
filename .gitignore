@@ -1,0 +1,5 @@
+# direnv cache; nix build output; JetBrains IDE state.
+.direnv/
+result
+result-*
+.idea/
