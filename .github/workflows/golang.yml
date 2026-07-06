@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command go build ./...
       # KUBEBUILDER_ASSETS comes from the devShell, so an envtest-backed suite
       # runs against the flake-pinned Kubernetes; multi-version coverage lives in
@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command go vet ./...
       - run: nix develop --command staticcheck ./...
       - run: nix develop --command gosec ./...
@@ -100,7 +100,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       # Hard gate: a reachable-from-code advisory blocks merge. The fix is usually
       # bumping the `toolchain` directive in go.mod (stdlib) or `go get -u` (deps).
       - run: nix develop --command govulncheck ./...
@@ -113,5 +113,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command arch-go

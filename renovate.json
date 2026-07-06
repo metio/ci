@@ -1,13 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>metio/renovate-config"],
-  "packageRules": [
-    {
-      "description": "Freeze this repo's references to its own nix-devshell composite action. The reusable workflows (golang.yml, frontend.yml) can't use a ./ local ref — they run in the caller's checkout — so they pin the same-repo action by SHA. Because this repo ships continuously, every release cuts a new tag Renovate would then chase across every self-reference. Consuming repos still update through their own pin to this repo; a genuine nix-devshell change (its own dependency bumps) is picked up by bumping these pins by hand.",
-      "matchDepNames": ["metio/ci", "metio/ci/**"],
-      "enabled": false
-    }
-  ],
   "customManagers": [
     {
       "customType": "regex",

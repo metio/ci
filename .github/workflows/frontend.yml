@@ -97,7 +97,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - if: needs.detect.outputs.typecheck == 'true'
         run: nix develop --command npm run typecheck
@@ -118,7 +118,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       # Chromium comes from the flake (PLAYWRIGHT_BROWSERS_PATH → the nix-store
       # playwright-driver browsers), so no `playwright install --with-deps` and no
@@ -134,7 +134,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command npm run coverage
 
@@ -146,7 +146,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command npm run lint
 
@@ -158,7 +158,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command npm run knip
 
@@ -170,7 +170,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command npm run a11y:light
 
@@ -182,7 +182,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command npm run a11y:dark
 
@@ -194,7 +194,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command npm ci
       - run: nix develop --command bash -c "$BUILD_COMMAND"
       # The action brings its own Chrome and node, so it runs on the runner rather
@@ -211,7 +211,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command reuse lint
 
   typos:
@@ -220,7 +220,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command typos
 
   yaml:
@@ -229,7 +229,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command yamllint .
 
   github-actions:
@@ -238,7 +238,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       # actionlint shells out to shellcheck (in the devShell) for run: blocks.
       - run: nix develop --command actionlint
 
@@ -248,5 +248,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@84b9ffe3e7a023be8335f28eb3aa6a8c6cb13cf0 # 2026.7.6074607
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command markdownlint-cli2 "**/*.md"
