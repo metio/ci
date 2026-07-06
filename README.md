@@ -12,6 +12,7 @@ language or build tool, so every project gets the same gates from one place.
 | Workflow | For |
 |---|---|
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
+| [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
 
 More languages/tools follow the same shape.
 
@@ -61,6 +62,56 @@ matrix is gone (its coverage lives in the kind smoke gate). The one thing `detec
 still decides: the `architecture` job runs only when an `arch-go.yml` is present;
 otherwise it skips cleanly. The sole input, `runs-on`, exists for the rare runner
 override.
+
+### Frontend
+
+The Vite/React pipeline is **flake-driven and convention-based**: every gate runs
+through the calling repo's nix flake devShell, and a `detect` job reads the repo's
+`package.json` scripts (and `lighthouserc.json`) to skip the gates a project
+doesn't define — so one workflow fits projects that ship different subsets. The
+repo must ship a `flake.nix` whose devShell provides `node`, chromium
+(`PLAYWRIGHT_BROWSERS_PATH` → `playwright-driver.browsers`, for the vitest browser
+and a11y gates), and the shared lint gate.
+
+```yaml
+# .github/workflows/verify.yml in a Vite/React project
+name: Verify
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  frontend:
+    name: Frontend        # checks then read "Frontend / build", "Frontend / lint", …
+    uses: metio/ci/.github/workflows/frontend.yml@<sha>
+    with:                 # both optional, both default sensibly
+      node-options: --dns-result-order=ipv4first    # e.g. a prerender that binds localhost
+      build-command: PLINKY_LOCALE=en npm run build # e.g. a single-locale bundle-size build
+
+  # … the project's own repo-specific jobs …
+
+  verify:
+    name: Verify
+    needs: [frontend]     # plus the project's other jobs
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
+          [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
+```
+
+Each gate keys off the script (or file) that enables it: `build` (typecheck +
+test + build + `size`), `browser` (`test:browser`), `coverage` (`coverage`),
+`lint` (`lint`), `knip` (`knip`), `accessibility-light` / `-dark` (`a11y:light` /
+`a11y:dark`), and `lighthouse` (a `lighthouserc.json`) — plus the always-on shared
+lint gate (reuse, typos, yamllint, actionlint, markdownlint). Two inputs cover the
+repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job) and
+`build-command` (the build/size and lighthouse invocation, e.g. a single-locale
+build for a per-visitor bundle-size measurement), alongside the shared `runs-on`.
 
 ## Shared devShell (`flake.nix`)
 
