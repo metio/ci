@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
 # direnv cache; nix build output; JetBrains IDE state.
 .direnv/
 result
