@@ -294,8 +294,10 @@ it with cosign keyless. Needs `permissions: { id-token: write, packages: write, 
 
 Installs Nix and caches the `/nix` store (keyed on `flake.nix`/`flake.lock`), so
 a repo whose toolchain is a nix flake runs every gate through the flake's devShell
-and CI resolves the exact versions in `flake.lock`. Check out the repo first, then
-run each gate with `nix develop --command …`:
+and CI resolves the exact versions in `flake.lock`. It lives in its own repo,
+[`metio/nix-devshell`](https://github.com/metio/nix-devshell) — released
+independently so its version doesn't track this repo's cadence. Check out the repo
+first, then run each gate with `nix develop --command …`:
 
 ```yaml
 jobs:
@@ -304,7 +306,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@<sha>
-      - uses: metio/ci/nix-devshell@<sha>
+      - uses: metio/nix-devshell@<sha>
       - run: nix develop --command <gate>
 ```
 
@@ -313,6 +315,10 @@ it in seconds. The two upstream refs it pins (the Nix installer and the store
 cache) are Renovate-bumped like any other action. Pair it with the
 [`policy-check`](#run-the-policies-in-another-repo) flake rules, which require a
 flake repo's tools to come from the devShell rather than setup/marketplace actions.
+
+`metio/ci/nix-devshell` still works as a backwards-compatible shim that forwards
+to `metio/nix-devshell`, so existing pins need no change; new callers should
+reference `metio/nix-devshell` directly.
 
 ## One required check per layer
 
