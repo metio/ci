@@ -113,38 +113,32 @@ repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job) and
 `build-command` (the build/size and lighthouse invocation, e.g. a single-locale
 build for a per-visitor bundle-size measurement), alongside the shared `runs-on`.
 
-## Shared devShell (`flake.nix`)
+## Shared devShell
 
-Every repo's flake builds its devShell from this repo's `lib.mkDevShell`, so the
-lint gate (reuse, typos, yamllint, actionlint, shellcheck, markdownlint) is
-defined once here, and the three Go tools nixpkgs does not ship — `arch-go`,
-`modernize`, `helm-schema` — are built from source in one place (this repo's
-[`update-flake.yml`](.github/workflows/update-flake.yml) keeps their versions +
-hashes current via `nix-update`).
+[`metio/nix-devshell`](https://github.com/metio/nix-devshell) now owns the nix
+toolchain — `lib.mkDevShell`, the shared lint gate, and the from-source Go tools
+(`arch-go`, `modernize`, `helm-schema`) — and the Nix-installer action. A repo
+builds its devShell from `devshell.lib.mkDevShell`:
 
 ```nix
 # a consuming repo's flake.nix
-inputs.ci.url = "github:metio/ci";
-inputs.nixpkgs.follows = "ci/nixpkgs";   # one nixpkgs pin, org-wide
-outputs = { nixpkgs, ci, ... }:
+inputs.devshell.url = "github:metio/nix-devshell";
+inputs.nixpkgs.follows = "devshell/nixpkgs";   # one nixpkgs pin, org-wide
+outputs = { nixpkgs, devshell, ... }:
   let pkgs = nixpkgs.legacyPackages.x86_64-linux; in {
-    devShells.x86_64-linux.default = ci.lib.mkDevShell {
+    devShells.x86_64-linux.default = devshell.lib.mkDevShell {
       inherit pkgs;
-      packages = [ pkgs.go (ci.lib.arch-go pkgs) (ci.lib.modernize pkgs) ];
-      env.KUBEBUILDER_ASSETS = "${ci.lib.kubebuilderAssets pkgs}";  # controllers only
-      menu = ''echo "  run gates via nix develop --command"'';       # interactive-only
+      packages = [ pkgs.go (devshell.lib.arch-go pkgs) (devshell.lib.modernize pkgs) ];
+      env.KUBEBUILDER_ASSETS = "${devshell.lib.kubebuilderAssets pkgs}";  # controllers only
     };
   };
 ```
 
-`lib` exposes `mkDevShell`, `lintTools`, the from-source package builders
-(`arch-go`/`modernize`/`helm-schema`, each a function of `pkgs`), and
-`kubebuilderAssets` (an offline envtest asset dir assembled from nixpkgs). A repo
-picks up a shared-tool bump by bumping its `ci` flake input (Renovate lock
-maintenance); it never redefines the lint list or the from-source packages, and
-it no longer needs its own `update-flake.yml`. `menu` prints only for an
-interactive shell, so it never pollutes the stdout `nix develop --command <tool>`
-captures.
+This repo consumes that same flake for its own devShell (the lint gate plus
+conftest for the policy tests). See the
+[nix-devshell README](https://github.com/metio/nix-devshell#readme) for the full
+`lib` surface — `mkDevShell`, `lintTools`, the from-source package builders, and
+`kubebuilderAssets`.
 
 ## Actions
 
