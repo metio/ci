@@ -13,3 +13,10 @@ path = "renovate.json"
 precedence = "override"
 SPDX-FileCopyrightText = "The ci Authors"
 SPDX-License-Identifier = "0BSD"
+
+# flake.lock is nix-generated JSON; it pins the shared toolchain.
+[[annotations]]
+path = "flake.lock"
+precedence = "override"
+SPDX-FileCopyrightText = "The ci Authors"
+SPDX-License-Identifier = "0BSD"

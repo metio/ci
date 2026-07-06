@@ -62,6 +62,39 @@ still decides: the `architecture` job runs only when an `arch-go.yml` is present
 otherwise it skips cleanly. The sole input, `runs-on`, exists for the rare runner
 override.
 
+## Shared devShell (`flake.nix`)
+
+Every repo's flake builds its devShell from this repo's `lib.mkDevShell`, so the
+lint gate (reuse, typos, yamllint, actionlint, shellcheck, markdownlint) is
+defined once here, and the three Go tools nixpkgs does not ship — `arch-go`,
+`modernize`, `helm-schema` — are built from source in one place (this repo's
+[`update-flake.yml`](.github/workflows/update-flake.yml) keeps their versions +
+hashes current via `nix-update`).
+
+```nix
+# a consuming repo's flake.nix
+inputs.ci.url = "github:metio/ci";
+inputs.nixpkgs.follows = "ci/nixpkgs";   # one nixpkgs pin, org-wide
+outputs = { nixpkgs, ci, ... }:
+  let pkgs = nixpkgs.legacyPackages.x86_64-linux; in {
+    devShells.x86_64-linux.default = ci.lib.mkDevShell {
+      inherit pkgs;
+      packages = [ pkgs.go (ci.lib.arch-go pkgs) (ci.lib.modernize pkgs) ];
+      env.KUBEBUILDER_ASSETS = "${ci.lib.kubebuilderAssets pkgs}";  # controllers only
+      menu = ''echo "  run gates via nix develop --command"'';       # interactive-only
+    };
+  };
+```
+
+`lib` exposes `mkDevShell`, `lintTools`, the from-source package builders
+(`arch-go`/`modernize`/`helm-schema`, each a function of `pkgs`), and
+`kubebuilderAssets` (an offline envtest asset dir assembled from nixpkgs). A repo
+picks up a shared-tool bump by bumping its `ci` flake input (Renovate lock
+maintenance); it never redefines the lint list or the from-source packages, and
+it no longer needs its own `update-flake.yml`. `menu` prints only for an
+interactive shell, so it never pollutes the stdout `nix develop --command <tool>`
+captures.
+
 ## Actions
 
 Composite actions for release pipelines — call them directly from a repo's
