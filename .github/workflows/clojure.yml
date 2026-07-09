@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Clojure
+
+# Reusable Clojure pipeline for metio projects. Every gate runs through the
+# calling repo's nix flake devShell (`nix develop --command`), so CI resolves
+# the exact tool versions in flake.lock — identical to a local run.
+#
+# The caller's contract:
+#   - a flake.nix providing clojure, babashka, and clj-kondo in the devShell
+#   - deps.edn aliases :test (kaocha or equivalent), :eastwood, :splint,
+#     :cljfmt, and :watson — the deep-analysis battery rides tools.deps, so
+#     versions live in deps.edn where Renovate maintains them
+#   - clj-kondo config in .clj-kondo/, cljfmt config in .cljfmt.edn,
+#     splint config in .splint.edn as needed
+#
+#   jobs:
+#     clojure:
+#       name: Clojure       # so checks read "Clojure / test", "Clojure / lint", …
+#       uses: metio/ci/.github/workflows/clojure.yml@v1
+#
+# The caller keeps its own non-Clojure jobs and one all-green aggregate
+# (named "Verify") that lists this `clojure` job — that aggregate is the
+# single required check (see README).
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+      kondo-paths:
+        description: Source roots for clj-kondo.
+        type: string
+        default: src test
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      - run: nix develop --command clojure -M:test
+
+  lint:
+    name: lint
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      # clj-kondo is the fast first line; the caller's config keeps it at
+      # 0 errors AND 0 warnings — warnings rot into wallpaper otherwise.
+      - run: nix develop --command clj-kondo --fail-level warning --lint ${{ inputs.kondo-paths }}
+
+  analyze:
+    name: analyze
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      # eastwood: deep analysis over macroexpanded code (reflection,
+      # shadowing, suspicious expressions)
+      - run: nix develop --command clojure -M:eastwood
+      # splint: idiom/style patterns (the kibit lineage, maintained)
+      - run: nix develop --command clojure -M:splint
+
+  format:
+    name: format
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      - run: nix develop --command clojure -M:cljfmt check
+
+  vulnerabilities:
+    name: vulnerabilities
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      # clj-watson against the GitHub advisory database; a reachable
+      # advisory blocks merge. The token is only read, never written.
+      - run: nix develop --command clojure -M:watson -p deps.edn -t github-advisory
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
