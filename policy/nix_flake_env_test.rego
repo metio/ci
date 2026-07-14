@@ -12,14 +12,25 @@ no_flake_repo := {"has_flake": false}
 nix_workflow := {
 	"on": {"pull_request": {"branches": ["main"]}},
 	"permissions": {"contents": "read"},
-	"jobs": {"fmt": {
-		"timeout-minutes": 10,
-		"steps": [
-			{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
-			{"uses": "./.github/actions/nix-devshell"},
-			{"run": "nix develop --command jsonnetfmt --test ./*.libsonnet"},
-		],
-	}},
+	"jobs": {
+		"fmt": {
+			"timeout-minutes": 10,
+			"steps": [
+				{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+				{"uses": "./.github/actions/nix-devshell"},
+				{"run": "nix develop --command jsonnetfmt --test ./*.libsonnet"},
+			],
+		},
+		# A PR gate carries the DCO check (require-dco), so this cross-rule-clean
+		# fixture does too.
+		"dco": {
+			"timeout-minutes": 10,
+			"steps": [
+				{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+				{"uses": "metio/ci/dco@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+			],
+		},
+	},
 }
 
 test_flags_setup_action_in_flake_repo if {

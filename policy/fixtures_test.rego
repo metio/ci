@@ -12,13 +12,24 @@ import rego.v1
 compliant_workflow := {
 	"on": {"pull_request": {"branches": ["main"]}},
 	"permissions": {"contents": "read"},
-	"jobs": {"build": {
-		"timeout-minutes": 10,
-		"steps": [
-			{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
-			{"run": "go build ./..."},
-		],
-	}},
+	"jobs": {
+		"build": {
+			"timeout-minutes": 10,
+			"steps": [
+				{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+				{"run": "go build ./..."},
+			],
+		},
+		# A PR gate carries the DCO check (require-dco), so the shared "fully
+		# compliant" fixture does too.
+		"dco": {
+			"timeout-minutes": 10,
+			"steps": [
+				{"uses": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+				{"uses": "metio/ci/dco@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"},
+			],
+		},
+	},
 }
 
 compliant_action := {"runs": {"using": "composite", "steps": [
