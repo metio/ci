@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: DCO
+description: >
+  Developer Certificate of Origin gate: every commit in the pull request range
+  must carry a `Signed-off-by:` trailer. Bot-authored commits (Renovate,
+  Dependabot) are skipped - they can not sign off. The calling job must check the
+  repo out with `fetch-depth: 0` so the whole PR range is available, and should
+  guard itself with `if: github.event.pull_request.user.type != 'Bot'` so a bot
+  PR skips (a skipped job still satisfies the all-green aggregate).
+
+inputs:
+  base:
+    description: Base SHA of the range. Defaults to the pull request base.
+    required: false
+    default: ""
+  head:
+    description: Head SHA of the range. Defaults to the pull request head.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Verify Signed-off-by on every commit
+      shell: bash
+      # The SHAs go through env, never inlined into the script, so an untrusted
+      # ref can not break out of the string (the run_injection policy).
+      env:
+        BASE: ${{ inputs.base != '' && inputs.base || github.event.pull_request.base.sha }}
+        HEAD: ${{ inputs.head != '' && inputs.head || github.event.pull_request.head.sha }}
+      run: |
+        status=0
+        for sha in $(git rev-list "$BASE..$HEAD"); do
+          name=$(git show -s --format='%an' "$sha")
+          case "$name" in
+            *'[bot]'*) echo "skip bot commit ${sha:0:8} ($name)"; continue ;;
+          esac
+          if git show -s --format='%B' "$sha" | grep -qiE '^Signed-off-by: .+ <.+@.+>$'; then
+            echo "ok   ${sha:0:8}"
+          else
+            echo "::error::commit ${sha:0:8} by '$name' is missing a Signed-off-by line (use git commit --signoff)"
+            status=1
+          fi
+        done
+        exit $status
