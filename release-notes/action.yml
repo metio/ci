@@ -16,7 +16,7 @@ inputs:
     description: The version being released; labels the notes (git-cliff --tag).
     required: true
   previous:
-    description: The previous release tag; empty for the first release (full history).
+    description: The previous release tag that bounds the notes. Optional — when empty it is derived from the newest existing tag matching tag-pattern (this unit's previous release), so a caller need not compute it; pass it only to override. No matching tag means the first release (full history).
     required: false
     default: ""
   output:
@@ -83,7 +83,22 @@ runs:
         for glob in "${include_globs[@]}"; do
           cliff_args+=(--include-path "$glob")
         done
-        # First release has no previous tag: omit the positional so git-cliff
-        # walks full history (a bare "HEAD" is rejected as a range).
-        [ -n "$PREVIOUS" ] && cliff_args+=("${PREVIOUS}..HEAD")
+        # The range's lower bound is this unit's previous release. An explicit
+        # `previous` wins; otherwise derive it from the tag lineage — the newest
+        # tag matching tag-pattern, excluding the version being released (its tag
+        # is created only after this action runs). No match means the first
+        # release, so the positional is omitted and git-cliff walks full history
+        # (a bare "HEAD" is rejected as a range).
+        prev="$PREVIOUS"
+        if [ -z "$prev" ]; then
+          prev="$(git tag --list --sort=-creatordate \
+            | { grep -E "$TAG_PATTERN" || true; } \
+            | { grep -Fxv "$VERSION" || true; } \
+            | head -n1)"
+        fi
+        # Separate the range with `--`: --include-path takes multiple values, so
+        # without the separator its parser swallows the following range as one
+        # more include-path glob and the range is silently dropped — leaving
+        # git-cliff to walk full history and every release to repeat it.
+        [ -n "$prev" ] && cliff_args+=(-- "${prev}..HEAD")
         git-cliff "${cliff_args[@]}" > "$OUTPUT"
