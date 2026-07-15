@@ -84,14 +84,20 @@ runs:
           cliff_args+=(--include-path "$glob")
         done
         # The range's lower bound is this unit's previous release. An explicit
-        # `previous` wins; otherwise derive it from the tag lineage — the newest
-        # tag matching tag-pattern, excluding the version being released (its tag
-        # is created only after this action runs). No match means the first
-        # release, so the positional is omitted and git-cliff walks full history
-        # (a bare "HEAD" is rejected as a range).
+        # `previous` wins; otherwise derive it from the tag lineage — the
+        # highest-versioned tag matching tag-pattern, excluding the version being
+        # released (its tag is created only after this action runs). No match
+        # means the first release, so the positional is omitted and git-cliff
+        # walks full history (a bare "HEAD" is rejected as a range).
+        #
+        # Sort by version, not creatordate: lightweight tags carry no date of
+        # their own, so creatordate falls back to the tagged commit's date — a
+        # release cut from an older commit would then sort behind a newer one and
+        # yield the wrong previous. The embedded CalVer/SemVer orders correctly
+        # regardless of when or on which commit each tag was cut.
         prev="$PREVIOUS"
         if [ -z "$prev" ]; then
-          prev="$(git tag --list --sort=-creatordate \
+          prev="$(git tag --list --sort=-version:refname \
             | { grep -E "$TAG_PATTERN" || true; } \
             | { grep -Fxv "$VERSION" || true; } \
             | head -n1)"
