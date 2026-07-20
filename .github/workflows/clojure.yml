@@ -44,7 +44,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command clojure -M:test
 
@@ -53,7 +53,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       # clj-kondo is the fast first line; the caller's config keeps it at
       # 0 errors AND 0 warnings — warnings rot into wallpaper otherwise.
@@ -64,7 +64,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       # eastwood: deep analysis over macroexpanded code (reflection,
       # shadowing, suspicious expressions)
@@ -77,7 +77,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - run: nix develop --command clojure -M:cljfmt check
 
@@ -86,7 +86,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       # clj-watson against the GitHub advisory database; a reachable
       # advisory blocks merge. The token is only read, never written.
