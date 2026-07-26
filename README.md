@@ -308,6 +308,58 @@ inside one run's duration keep only the newest queued run (GitHub cancels the
 middle one), so that one calendar version is skipped — no commits are lost from
 the changelog, there's just no separate release for it.
 
+### `central-quota`
+
+Maven Central meters publishing **per organization**: 7 releases a calendar
+month on the free tier, averaged over a rolling three-month window (plus 1,167
+files and 78 MB). That budget is shared by every metio repo publishing under the
+`wtf.metio` namespace, so no single repo's workflow can tell whether one more
+release fits. This action counts what the Central-publishing repos already
+released this month and answers that question:
+
+```yaml
+- id: quota
+  uses: metio/ci/central-quota@<sha>
+- if: steps.gate.outputs.needed == 'true' && steps.quota.outputs.available == 'true'
+  run: mvn deploy
+```
+
+The canonical repo list lives in the action's `repos` default — add a repo there
+when it starts publishing, and every caller picks it up on the next pin bump.
+Skipping costs nothing: [`needs-release`](#needs-release) measures against the
+last *release*, not the last run, so a repo passed over in a full month still
+sees its changes at its next slot.
+
+#### The Maven release rhythm
+
+Central-publishing repos do **not** release per merge. Each runs a monthly
+scheduled workflow on its own day-of-month slot, gated on
+[`needs-release`](#needs-release) (did anything change?) and `central-quota`
+(is there budget?). Staggering the slots spreads the deployments through the
+month instead of bursting them, and gives the repos other projects build on the
+earliest slots, so a downstream repo's own slot already sees the new parent:
+
+| Day | Repo |
+|---|---|
+| 1 | `maven-parent` |
+| 4 | `maven-build-process` |
+| 7 | `hcf4j` |
+| 10 | `reguloj` |
+| 13 | `storage-units.java` |
+| 16 | `memoization.java` |
+| 19 | `yosql` |
+| 22 | `javapoet-type-guesser` |
+| 25 | `thats-interesting.java` |
+| 28 | `devcontainer.java` |
+
+Ten slots against a budget of seven is deliberate: in a typical month most repos
+have no changes and skip themselves, and the quota guard is what holds the line
+in the months where more than seven do. The limit is a three-month average, so an
+occasional busy month (a security fix, a coordinated bump) is expected to be fine.
+
+This applies only to Maven Central. GitHub releases, container images, and Go
+modules are unmetered, so those repos keep releasing on every qualifying push.
+
 ### `cosign-sign-blob`
 
 Installs cosign and keyless-signs a file, writing `<file>.bundle` (e.g. the
