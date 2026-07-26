@@ -19,7 +19,12 @@ inputs:
       Space- or newline-separated `owner/name` repositories that publish to
       Maven Central under the organization's namespace. The default is the
       canonical metio list — keep it current here, in one place, rather than
-      passing a copy from each caller.
+      passing a copy from each caller. Membership follows the release workflow,
+      not the presence of a `pom.xml`: `ilo` builds with Maven but ships only
+      native binaries on its GitHub release, and `kdk` and `krei` are archived.
+      Over-listing is harmless — a repo that never releases counts zero — while
+      omitting a publisher lets its releases go uncounted, so when in doubt,
+      list it.
     required: false
     default: |
       metio/maven-parent
