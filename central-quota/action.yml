@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Maven Central quota
+description: >
+  Decide whether the organization has room for another Maven Central release
+  this month. Maven Central meters publishing per organization — 7 releases per
+  calendar month on the free tier, averaged over a rolling three-month window —
+  so the budget is shared across every metio repo that publishes there, and no
+  single repo can see the whole picture on its own. This action counts the
+  GitHub releases the Central-publishing repos already cut this month and
+  reports whether one more fits. A repo whose slot falls in a full month simply
+  keeps its changes pending: the next slot still sees them, because the release
+  gate measures against the last release, not the last run.
+
+inputs:
+  repos:
+    description: >
+      Space- or newline-separated `owner/name` repositories that publish to
+      Maven Central under the organization's namespace. The default is the
+      canonical metio list — keep it current here, in one place, rather than
+      passing a copy from each caller.
+    required: false
+    default: |
+      metio/maven-parent
+      metio/maven-build-process
+      metio/devcontainer.java
+      metio/hcf4j
+      metio/reguloj
+      metio/storage-units.java
+      metio/memoization.java
+      metio/yosql
+      metio/javapoet-type-guesser
+      metio/thats-interesting.java
+  limit:
+    description: Releases allowed per calendar month across those repos.
+    required: false
+    default: "7"
+  token:
+    description: >
+      Token used to read the releases. The default job token can read public
+      repositories; a read-only PAT is needed if any of them is private.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  available:
+    description: "`true` when another release fits in this month's budget."
+    value: ${{ steps.count.outputs.available }}
+  used:
+    description: Releases already published this month across the listed repos.
+    value: ${{ steps.count.outputs.used }}
+  limit:
+    description: The limit the count was compared against.
+    value: ${{ steps.count.outputs.limit }}
+
+runs:
+  using: composite
+  steps:
+    - id: count
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOS: ${{ inputs.repos }}
+        LIMIT: ${{ inputs.limit }}
+      run: |
+        set -euo pipefail
+        month="$(date -u +%Y-%m)"
+        used=0
+        for repo in $REPOS; do
+          # A draft carries no published_at and is not a release yet; a
+          # prerelease still consumes a Central deployment, so it counts.
+          count="$(gh api "repos/$repo/releases" --paginate \
+            --jq "[.[] | select(.draft == false) | select(.published_at // \"\" | startswith(\"$month\"))] | length" \
+            2>/dev/null | awk '{ sum += $1 } END { print sum + 0 }')" || {
+            echo "::warning::cannot read releases of $repo; counting it as 0"
+            count=0
+          }
+          echo "  $repo: $count"
+          used=$((used + count))
+        done
+        available=true
+        if [ "$used" -ge "$LIMIT" ]; then
+          available=false
+        fi
+        {
+          echo "used=$used"
+          echo "limit=$LIMIT"
+          echo "available=$available"
+        } >> "$GITHUB_OUTPUT"
+        echo "Maven Central releases in $month: $used/$LIMIT (room for another: $available)"
+        if [ "$available" = "false" ]; then
+          echo "::notice::Maven Central budget for $month is spent ($used/$LIMIT); skipping this release, the changes ride the next slot"
+        fi

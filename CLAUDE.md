@@ -25,6 +25,9 @@ the versioning live in one place. There is no application code here.
 - `detect-repo-type/action.yml` — classify a repo to drive the above.
 - `release-notes/`, `container-release/`, `cosign-sign-blob/` — release-pipeline
   composite actions (git-cliff notes, multi-arch image + cosign, blob signing).
+- `central-quota/action.yml` — the shared Maven Central budget (7 releases per
+  org per month). Holds the canonical list of Central-publishing repos and the
+  monthly slot calendar that goes with it; see the README section.
 - `policy/` — conftest/Rego convention policies (`*.rego`) plus their unit tests
   (`*_test.rego`); see `## policy`.
 - `policy-check/action.yml` — composite action that runs `policy/` over a
