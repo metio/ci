@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Maven
+
+# Reusable Maven pipeline for metio projects. Every gate runs through the
+# calling repo's nix flake devShell (`nix develop --command`), so CI resolves
+# the exact JDK and Maven versions in flake.lock — identical to a local run.
+#
+# The caller's contract:
+#   - a flake.nix providing maven and a JDK in the devShell
+#   - a pom.xml inheriting wtf.metio.maven:maven-parent, which is where the
+#     static-analysis battery (checkstyle, pmd, spotbugs, dependency analysis,
+#     pitest) is configured — the gates are the build, not extra tool calls
+#     bolted on here, so a project tunes them in its POM where Renovate also
+#     maintains the plugin versions
+#
+#   jobs:
+#     maven:
+#       name: Maven         # so checks read "Maven / build", "Maven / javadoc"
+#       uses: metio/ci/.github/workflows/maven.yml@<sha>
+#
+# The caller keeps its own non-Maven jobs and one all-green aggregate (named
+# "Verify") that lists this `maven` job — that aggregate is the single required
+# check (see README).
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+      maven-args:
+        description: Arguments prepended to every Maven invocation.
+        type: string
+        default: --batch-mode --no-transfer-progress
+      goals:
+        description: Goals and phases the build gate runs.
+        type: string
+        default: verify
+      javadoc:
+        description: >
+          Run the javadoc gate. A broken Javadoc only surfaces at release time
+          otherwise, because the javadoc plugin runs in the release profile.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      # The local repository is the whole cost of a Maven run on a fresh runner.
+      # Keyed on the POMs so a dependency change refetches only the delta; the
+      # prefix fallback restores the previous repository on a miss.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-${{ runner.os }}-
+      - env:
+          ARGS: ${{ inputs.maven-args }}
+          GOALS: ${{ inputs.goals }}
+        run: |
+          # shellcheck disable=SC2086 # both inputs are deliberately word-split
+          nix develop --command mvn $ARGS $GOALS
+
+  javadoc:
+    name: javadoc
+    if: inputs.javadoc
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-${{ runner.os }}-
+      # Sources still have to compile for javadoc to read them; the tests do not,
+      # so skip them here and let the build gate own them.
+      - env:
+          ARGS: ${{ inputs.maven-args }}
+        run: |
+          # shellcheck disable=SC2086 # the input is deliberately word-split
+          nix develop --command mvn $ARGS --define maven.test.skip=true javadoc:javadoc

@@ -13,6 +13,8 @@ language or build tool, so every project gets the same gates from one place.
 |---|---|
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
+| [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
+| [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
 
 More languages/tools follow the same shape.
 
@@ -112,6 +114,52 @@ lint gate (reuse, typos, yamllint, actionlint, markdownlint). Two inputs cover t
 repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job) and
 `build-command` (the build/size and lighthouse invocation, e.g. a single-locale
 build for a per-visitor bundle-size measurement), alongside the shared `runs-on`.
+
+### Maven
+
+The Maven pipeline is **flake-driven and POM-driven**: the JDK and Maven come
+from the calling repo's devShell, and the gates themselves are the build. A
+metio Java project inherits `wtf.metio.maven:maven-parent`, which configures the
+static-analysis battery (checkstyle, pmd, spotbugs, dependency analysis, pitest)
+into the `verify` lifecycle — so a plugin is added and tuned in the POM, where
+Renovate maintains its version, rather than as another tool call in CI.
+
+```yaml
+# .github/workflows/verify.yml in a Maven project
+# SPDX-License-Identifier: 0BSD
+name: Verify
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  maven:
+    name: Maven           # checks then read "Maven / build", "Maven / javadoc"
+    uses: metio/ci/.github/workflows/maven.yml@<sha>
+
+  # … the project's own non-Maven jobs (reuse, yaml, markdown, dco, policy …) …
+
+  verify:
+    name: Verify
+    needs: [maven]        # plus the project's other jobs
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
+          [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
+```
+
+The `build` job runs `mvn verify`; the `javadoc` job compiles the sources and
+renders the Javadoc, because the javadoc plugin otherwise runs only in the
+`release` profile and a broken doc comment would surface at release time. Both
+jobs cache `~/.m2/repository` keyed on the POMs. Four optional inputs cover the
+variation: `goals` (default `verify`), `maven-args` (default
+`--batch-mode --no-transfer-progress`), `javadoc` (set `false` for a project
+with no Java sources), and the shared `runs-on`.
 
 ## Shared devShell
 

@@ -16,6 +16,10 @@ the versioning live in one place. There is no application code here.
 ## Layout
 
 - `.github/workflows/golang.yml` — reusable Go pipeline (`workflow_call`).
+- `.github/workflows/frontend.yml`, `clojure.yml`, `maven.yml` — the same shape
+  for Vite/React, Clojure, and Maven. `maven.yml` deliberately owns no analysis
+  tools: the metio parent POM (`wtf.metio.maven:maven-parent`) binds them into
+  `verify`, so a gate is added in the POM, not here.
 - `calver/action.yml` — compute the next calendar version.
 - `needs-release/action.yml` — decide whether a release is warranted.
 - `detect-repo-type/action.yml` — classify a repo to drive the above.
