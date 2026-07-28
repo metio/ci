@@ -26,8 +26,12 @@ name: Frontend
 # playwright-driver.browsers), and the shared lint gate.
 #
 # The convention is script names: a gate runs when the caller defines the
-# matching npm script (test:browser, coverage, size, lint, knip, a11y:light,
-# a11y:dark) or, for lighthouse, a lighthouserc.json. Missing scripts skip.
+# matching npm script (test:browser, test:storybook, coverage, size, lint, knip,
+# a11y:light, a11y:dark) or, for lighthouse, a lighthouserc.json. Missing scripts
+# skip. A caller whose test runner would sweep every project into `coverage`
+# should scope that script to the instrumented ones: story screenshots measure
+# nothing and starve under instrumentation, and this workflow runs them on their
+# own.
 #
 # The lighthouse job audits the site the build job already produced, passed along
 # as an artifact, so the build happens once and both the size budget and the
@@ -74,6 +78,7 @@ jobs:
       build: ${{ steps.env.outputs.build }}
       size: ${{ steps.env.outputs.size }}
       test_browser: ${{ steps.env.outputs.test_browser }}
+      test_storybook: ${{ steps.env.outputs.test_storybook }}
       coverage: ${{ steps.env.outputs.coverage }}
       lint: ${{ steps.env.outputs.lint }}
       knip: ${{ steps.env.outputs.knip }}
@@ -89,7 +94,7 @@ jobs:
         run: |
           has_script() { jq -e --arg s "$1" '.scripts[$s] // empty' package.json >/dev/null 2>&1; }
           emit() { echo "$1=$2" >> "$GITHUB_OUTPUT"; echo "detected: $1=$2"; }
-          for script in typecheck test build size test:browser coverage lint knip a11y:light a11y:dark; do
+          for script in typecheck test build size test:browser test:storybook coverage lint knip a11y:light a11y:dark; do
             key=${script//:/_}
             if has_script "$script"; then emit "$key" true; else emit "$key" false; fi
           done
@@ -159,6 +164,21 @@ jobs:
       # registry image. The caller holds its `playwright` npm version to the
       # driver's.
       - run: nix develop --command npm run test:browser
+
+  storybook:
+    name: storybook
+    needs: detect
+    if: needs.detect.outputs.test_storybook == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
+      - run: nix develop --command npm ci
+      # Story screenshots compare against committed baselines, so they want a browser
+      # rendering at its normal speed — not one racing an instrumented coverage run,
+      # where they starve and flake on timing rather than on any real visual change.
+      - run: nix develop --command npm run test:storybook
 
   coverage:
     name: coverage
