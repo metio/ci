@@ -18,6 +18,7 @@ name: Frontend
 #       with:
 #         node-options: --dns-result-order=ipv4first
 #         build-command: PLINKY_LOCALE=en npm run build
+#         tests-in-coverage: true   # coverage runs the same suite; don't test twice
 #
 # The caller keeps its own repo-specific jobs and one all-green aggregate (named
 # "Verify") that lists this `frontend` job — that aggregate is the single
@@ -57,6 +58,16 @@ on:
           bundle-size measurement).
         type: string
         default: npm run build
+      tests-in-coverage:
+        description: >
+          Set when the caller's `coverage` script runs the same tests `npm test`
+          does — the usual shape, where coverage is the suite plus
+          instrumentation. The build job then skips its own run instead of the
+          two jobs testing the same code twice per CI run. Left false, both run:
+          a repo whose coverage script covers only a subset would otherwise lose
+          the rest of its tests silently, which is not a thing to infer.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -123,7 +134,9 @@ jobs:
       - run: nix develop --command npm ci
       - if: needs.detect.outputs.typecheck == 'true'
         run: nix develop --command npm run typecheck
-      - if: needs.detect.outputs.test == 'true'
+      # Typecheck stays here either way: it is the cheapest gate and the one whose
+      # failure explains the most, so it should not wait behind a suite.
+      - if: needs.detect.outputs.test == 'true' && !inputs.tests-in-coverage
         run: nix develop --command npm test
       # The build feeds the size budget and the lighthouse audit, so it runs
       # whenever any of the three is present.
