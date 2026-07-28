@@ -28,6 +28,11 @@ name: Frontend
 # The convention is script names: a gate runs when the caller defines the
 # matching npm script (test:browser, coverage, size, lint, knip, a11y:light,
 # a11y:dark) or, for lighthouse, a lighthouserc.json. Missing scripts skip.
+#
+# The lighthouse job audits the site the build job already produced, passed along
+# as an artifact, so the build happens once and both the size budget and the
+# per-page audits weigh the same bytes. Its directory comes from the caller's
+# lighthouserc.json (`ci.collect.staticDistDir`), so nothing needs configuring.
 on:
   workflow_call:
     inputs:
@@ -75,6 +80,7 @@ jobs:
       a11y_light: ${{ steps.env.outputs.a11y_light }}
       a11y_dark: ${{ steps.env.outputs.a11y_dark }}
       lighthouse: ${{ steps.env.outputs.lighthouse }}
+      lighthouse_dist: ${{ steps.env.outputs.lighthouse_dist }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: env
@@ -88,11 +94,22 @@ jobs:
             if has_script "$script"; then emit "$key" true; else emit "$key" false; fi
           done
           if [ -f lighthouserc.json ] || [ -f lighthouserc.js ]; then emit lighthouse true; else emit lighthouse false; fi
+          # Where the built site lands, so the build job can hand exactly that
+          # directory to the lighthouse job instead of it building a second copy.
+          # Only the JSON form can be read here; a lighthouserc.js caller keeps the
+          # default, which is the conventional Vite/React Router output.
+          dist=build/client
+          if [ -f lighthouserc.json ]; then
+            dist=$(jq -r '.ci.collect.staticDistDir // "build/client"' lighthouserc.json)
+          fi
+          emit lighthouse_dist "${dist#./}"
 
   build:
     name: build
     needs: detect
-    if: needs.detect.outputs.build == 'true' || needs.detect.outputs.test == 'true' || needs.detect.outputs.typecheck == 'true'
+    if: >-
+      needs.detect.outputs.build == 'true' || needs.detect.outputs.test == 'true'
+      || needs.detect.outputs.typecheck == 'true' || needs.detect.outputs.lighthouse == 'true'
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 30
     steps:
@@ -103,12 +120,29 @@ jobs:
         run: nix develop --command npm run typecheck
       - if: needs.detect.outputs.test == 'true'
         run: nix develop --command npm test
-      # The build feeds the size budget, so it runs whenever either is present.
-      - if: needs.detect.outputs.build == 'true' || needs.detect.outputs.size == 'true'
+      # The build feeds the size budget and the lighthouse audit, so it runs
+      # whenever any of the three is present.
+      - if: >-
+          needs.detect.outputs.build == 'true' || needs.detect.outputs.size == 'true'
+          || needs.detect.outputs.lighthouse == 'true'
         run: nix develop --command bash -c "$BUILD_COMMAND"
       - if: needs.detect.outputs.size == 'true'
         name: Check bundle size
         run: nix develop --command npm run size
+      # Hand the built site to the lighthouse job rather than have it install and
+      # build a second, identical copy. Both jobs must measure the same bytes for
+      # the per-page budgets to mean anything, and one build is how that is
+      # guaranteed rather than hoped for. The whole directory travels, content
+      # assets included: an audited page that fetches its data at runtime would
+      # otherwise log console errors and score against a site nobody ships.
+      - if: needs.detect.outputs.lighthouse == 'true'
+        name: Upload the built site for the lighthouse job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-build
+          path: ${{ needs.detect.outputs.lighthouse_dist }}
+          retention-days: 1
+          include-hidden-files: true
 
   browser:
     name: browser
@@ -188,17 +222,20 @@ jobs:
 
   lighthouse:
     name: lighthouse
-    needs: detect
+    needs: [detect, build]
     if: needs.detect.outputs.lighthouse == 'true'
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
-      - run: nix develop --command npm ci
-      - run: nix develop --command bash -c "$BUILD_COMMAND"
-      # The action brings its own Chrome and node, so it runs on the runner rather
-      # than through the devShell; it only reads the built ./build/client.
+      # The site arrives prebuilt from the build job, so this job needs neither the
+      # devShell nor node_modules: the action brings its own Chrome and node and
+      # reads only the static directory and the config file from the checkout.
+      - name: Download the built site
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: frontend-build
+          path: ${{ needs.detect.outputs.lighthouse_dist }}
       - name: Lighthouse CI
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
         with:
