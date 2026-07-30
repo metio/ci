@@ -96,6 +96,7 @@ jobs:
       a11y_light: ${{ steps.env.outputs.a11y_light }}
       a11y_dark: ${{ steps.env.outputs.a11y_dark }}
       lighthouse: ${{ steps.env.outputs.lighthouse }}
+      lighthouse_config: ${{ steps.env.outputs.lighthouse_config }}
       lighthouse_dist: ${{ steps.env.outputs.lighthouse_dist }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -109,11 +110,28 @@ jobs:
             key=${script//:/_}
             if has_script "$script"; then emit "$key" true; else emit "$key" false; fi
           done
-          if [ -f lighthouserc.json ] || [ -f lighthouserc.js ]; then emit lighthouse true; else emit lighthouse false; fi
+          # Which of the two forms was found, so the job points at the file that
+          # is actually there. Detecting either and then hardcoding one name
+          # enables the gate for a repo and hands the action a path that does not
+          # exist — the failure is an ENOENT from inside @lhci/cli, which names
+          # the missing file and not the reason it was asked for.
+          if [ -f lighthouserc.json ]; then
+            emit lighthouse true
+            emit lighthouse_config ./lighthouserc.json
+          elif [ -f lighthouserc.js ]; then
+            emit lighthouse true
+            emit lighthouse_config ./lighthouserc.js
+          else
+            emit lighthouse false
+            emit lighthouse_config ./lighthouserc.json
+          fi
           # Where the built site lands, so the build job can hand exactly that
           # directory to the lighthouse job instead of it building a second copy.
-          # Only the JSON form can be read here; a lighthouserc.js caller keeps the
-          # default, which is the conventional Vite/React Router output.
+          # Only the JSON form can be read here — a .js config is a module, and
+          # reading it would mean executing a caller's code in the detect job. A
+          # lighthouserc.js caller keeps the default, which is the conventional
+          # Vite/React Router output; a repo that puts its build somewhere else
+          # and derives its config in JS would need to say so another way.
           dist=build/client
           if [ -f lighthouserc.json ]; then
             dist=$(jq -r '.ci.collect.staticDistDir // "build/client"' lighthouserc.json)
@@ -272,7 +290,7 @@ jobs:
       - name: Lighthouse CI
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
         with:
-          configPath: ./lighthouserc.json
+          configPath: ${{ needs.detect.outputs.lighthouse_config }}
           temporaryPublicStorage: true
 
   reuse:
