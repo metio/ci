@@ -87,12 +87,16 @@ jobs:
       # Sources still have to compile for javadoc to read them; the tests do not,
       # so skip them here and let the build gate own them.
       #
-      # `package` runs first because `javadoc:javadoc` on its own is a direct goal
-      # invocation: it takes every module only as far as generate-sources, so in a
-      # multi-module build nothing produces the artifact the next module depends
-      # on, and resolution fails on the reactor's own SNAPSHOTs.
+      # This is `package` plus the no-fork goal because the forking one runs the
+      # lifecycle again from scratch, reaching only generate-sources: no module
+      # produces the artifact the next one depends on, and no module has the
+      # source root an annotation processor writes into, so a reactor using
+      # Immutables or Dagger cannot resolve its own generated types. Running
+      # after `package` in the same session is also what the release does, since
+      # `javadoc:jar` is bound to that phase — so the gate fails on what a
+      # release would fail on, and nothing else.
       - env:
           ARGS: ${{ inputs.maven-args }}
         run: |
           # shellcheck disable=SC2086 # the input is deliberately word-split
-          nix develop --command mvn $ARGS --define maven.test.skip=true package javadoc:javadoc
+          nix develop --command mvn $ARGS --define maven.test.skip=true package javadoc:javadoc-no-fork
