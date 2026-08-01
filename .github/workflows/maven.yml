@@ -86,8 +86,13 @@ jobs:
           restore-keys: maven-${{ runner.os }}-
       # Sources still have to compile for javadoc to read them; the tests do not,
       # so skip them here and let the build gate own them.
+      #
+      # `package` runs first because `javadoc:javadoc` on its own is a direct goal
+      # invocation: it takes every module only as far as generate-sources, so in a
+      # multi-module build nothing produces the artifact the next module depends
+      # on, and resolution fails on the reactor's own SNAPSHOTs.
       - env:
           ARGS: ${{ inputs.maven-args }}
         run: |
           # shellcheck disable=SC2086 # the input is deliberately word-split
-          nix develop --command mvn $ARGS --define maven.test.skip=true javadoc:javadoc
+          nix develop --command mvn $ARGS --define maven.test.skip=true package javadoc:javadoc
