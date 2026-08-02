@@ -4,7 +4,7 @@
 name: Policy check
 description: >
   Run the metio CI convention policies (conftest/Rego) over the calling repo's
-  workflows and composite actions. The policies travel with this action — pin it
+  workflows, composite actions and Containerfiles. The policies travel with this action — pin it
   to the same ref as the rest of metio/ci and Renovate keeps both current. The
   calling job must check out its own repo first (actions/checkout).
 
@@ -66,3 +66,13 @@ runs:
         [ -f flake.nix ] && has_flake=true
         printf '{"repo":{"has_flake":%s}}\n' "$has_flake" > "$data_dir/repo.json"
         conftest test --policy "$policy_dir" --data "$data_dir" "${targets[@]}"
+        # Containerfiles need the dockerfile parser and have no extension for
+        # conftest to infer it from, so they are a second run rather than more
+        # targets. Absent is fine — most repos ship no image.
+        containerfiles=()
+        while IFS= read -r f; do
+          containerfiles+=("$f")
+        done < <(find . -path ./.git -prune -o \( -name Containerfile -o -name Dockerfile \) -print)
+        if [ "${#containerfiles[@]}" -gt 0 ]; then
+          conftest test --parser dockerfile --policy "$policy_dir" --data "$data_dir" "${containerfiles[@]}"
+        fi
