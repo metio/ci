@@ -49,13 +49,33 @@ runs:
           echo "no prior release tag; release needed"
           exit 0
         fi
+        # --quiet asks the question without answering it in full: it prints
+        # nothing and reports 1 when there is a difference, 0 when there is none.
+        # Piping a file list into `head -1` raced instead — head closes the pipe
+        # after the first name, git takes SIGPIPE on its next write, and the step
+        # dies 141 under `-e -o pipefail`. Harmless while a release touched three
+        # files and it fits one write; a release touching two hundred made it
+        # likely, and intermittent, and about the size of the diff rather than
+        # anything a reader would suspect.
+        #
+        # Statuses above 1 are git failing rather than answering, and are passed
+        # on: a release skipped because the check broke looks exactly like a
+        # release skipped because nothing changed.
+        status=0
         # word-split PATHS into pathspecs deliberately.
         # shellcheck disable=SC2086
-        changed="$(git diff --name-only "$last"..HEAD -- $PATHS | head -1)"
-        if [ -n "$changed" ]; then
-          echo "needed=true" >> "$GITHUB_OUTPUT"
-          echo "changes under the given paths since $last; release needed"
-        else
-          echo "needed=false" >> "$GITHUB_OUTPUT"
-          echo "no changes under the given paths since $last; skipping release"
-        fi
+        git diff --quiet "$last"..HEAD -- $PATHS || status=$?
+        case "$status" in
+          0)
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "no changes under the given paths since $last; skipping release"
+            ;;
+          1)
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "changes under the given paths since $last; release needed"
+            ;;
+          *)
+            echo "::error::git diff failed with status $status; cannot tell whether a release is needed"
+            exit "$status"
+            ;;
+        esac
