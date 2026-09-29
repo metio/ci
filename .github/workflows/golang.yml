@@ -5,7 +5,9 @@ name: Go
 
 # Reusable Go pipeline for metio projects. Every gate runs through the calling
 # repo's nix flake devShell (`nix develop --command`), so CI resolves the exact
-# tool versions in flake.lock — identical to a local run. A `detect` job skips
+# tool versions in flake.lock — identical to a local run. Every Go job restores
+# the module cache, so a fresh runner refetches only what changed rather than the
+# whole graph four times over. A `detect` job skips
 # the optional architecture gate when the repo has no arch-go.yml. The caller
 # needs only a flake.nix that provides go + the correctness tools (go vet,
 # staticcheck, gosec, gofumpt, govulncheck, arch-go, modernize) and, for
@@ -56,6 +58,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - id: goenv
+        # The module cache is the whole network cost of a Go run on a fresh
+        # runner, and every job below resolves the same graph. A single dropped
+        # stream from proxy.golang.org fails a build outright — Go falls back to
+        # `direct` only on a 404, not on a transport error — so restoring the
+        # cache both shrinks that exposure to whatever changed and makes each job
+        # faster.
+        #
+        # The path is read from the toolchain rather than hardcoded to
+        # ~/go/pkg/mod: GOMODCACHE follows GOPATH, which a devShell or a runner
+        # image is free to move, and caching a path nothing writes to would
+        # report success while caching nothing.
+        #
+        # All four jobs share one key, so whichever finishes first saves it and
+        # the others log a reservation warning. That is expected, not a fault.
+        run: echo "modcache=$(nix develop --command go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.goenv.outputs.modcache }}
+          # Keyed on the sums so a dependency change refetches only the delta;
+          # the prefix fallback restores the previous cache on a miss.
+          key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
       - run: nix develop --command go build ./...
       # KUBEBUILDER_ASSETS comes from the devShell, so an envtest-backed suite
       # runs against the flake-pinned Kubernetes; multi-version coverage lives in
@@ -69,6 +94,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - id: goenv
+        run: echo "modcache=$(nix develop --command go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.goenv.outputs.modcache }}
+          key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
       - run: nix develop --command go vet ./...
       - run: nix develop --command staticcheck ./...
       - run: nix develop --command gosec ./...
@@ -101,6 +133,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - id: goenv
+        run: echo "modcache=$(nix develop --command go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.goenv.outputs.modcache }}
+          key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
       # Hard gate: a reachable-from-code advisory blocks merge. The fix is usually
       # bumping the `toolchain` directive in go.mod (stdlib) or `go get -u` (deps).
       - run: nix develop --command govulncheck ./...
@@ -114,4 +153,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - id: goenv
+        run: echo "modcache=$(nix develop --command go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.goenv.outputs.modcache }}
+          key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
       - run: nix develop --command arch-go
