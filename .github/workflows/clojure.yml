@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+      - uses: metio/breto@78517938c316d760b945fcc17cadbe61728b1d02 # 2026.10.30181349
         with:
           registries: github:metio/toolchains
       - run: clojure -M:test
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+      - uses: metio/breto@78517938c316d760b945fcc17cadbe61728b1d02 # 2026.10.30181349
         with:
           registries: github:metio/toolchains
       # clj-kondo is the fast first line; the caller's config keeps it at
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+      - uses: metio/breto@78517938c316d760b945fcc17cadbe61728b1d02 # 2026.10.30181349
         with:
           registries: github:metio/toolchains
       # eastwood: deep analysis over macroexpanded code (reflection,
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+      - uses: metio/breto@78517938c316d760b945fcc17cadbe61728b1d02 # 2026.10.30181349
         with:
           registries: github:metio/toolchains
       - run: clojure -M:cljfmt check
@@ -111,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+      - uses: metio/breto@78517938c316d760b945fcc17cadbe61728b1d02 # 2026.10.30181349
         with:
           registries: github:metio/toolchains
       # clj-watson against the GitHub advisory database; a reachable
