@@ -30,17 +30,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # needs-release/calver read tags and history
+          persist-credentials: false
       - id: gate
-        uses: ./needs-release
+        uses: ./needs-release # zizmor: ignore[self-repository] dogfoods the action of this commit
         with:
           paths: .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes central-quota policy policy-check
       - id: version
         if: steps.gate.outputs.needed == 'true'
-        uses: ./calver
+        uses: ./calver # zizmor: ignore[self-repository] dogfoods the action of this commit
       - id: notes
         name: Generate release notes
         if: steps.gate.outputs.needed == 'true'
-        uses: ./release-notes
+        uses: ./release-notes # zizmor: ignore[self-repository] dogfoods the action of this commit
         with:
           version: ${{ steps.version.outputs.version }}
           previous: ${{ steps.gate.outputs.last }}

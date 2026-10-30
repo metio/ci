@@ -3,12 +3,13 @@
 
 name: Maven
 
-# Reusable Maven pipeline for metio projects. Every gate runs through the
-# calling repo's nix flake devShell (`nix develop --command`), so CI resolves
-# the exact JDK and Maven versions in flake.lock — identical to a local run.
+# Reusable Maven pipeline for metio projects. Every job installs the calling
+# repo's toolchain with the breto action from its .breto.edn, which names the
+# metio/toolchains groups, so CI runs the exact JDK and Maven versions a local
+# breto env links.
 #
 # The caller's contract:
-#   - a flake.nix providing maven and a JDK in the devShell
+#   - a .breto.edn naming one JDK group (@jdk17, @jdk25 or @graalvm) and @maven
 #   - a pom.xml inheriting wtf.metio.maven:maven-parent, which is where the
 #     static-analysis battery (checkstyle, pmd, spotbugs, dependency analysis,
 #     pitest) is configured — the gates are the build, not extra tool calls
@@ -55,7 +56,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+        with:
+          persist-credentials: false
+      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+        with:
+          registries: github:metio/toolchains
       # The local repository is the whole cost of a Maven run on a fresh runner.
       # Keyed on the POMs so a dependency change refetches only the delta; the
       # prefix fallback restores the previous repository on a miss.
@@ -69,7 +74,7 @@ jobs:
           GOALS: ${{ inputs.goals }}
         run: |
           # shellcheck disable=SC2086 # both inputs are deliberately word-split
-          nix develop --command mvn $ARGS $GOALS
+          mvn $ARGS $GOALS
 
   javadoc:
     name: javadoc
@@ -78,7 +83,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+        with:
+          persist-credentials: false
+      - uses: metio/breto@8605569953d2162ace55fb0f2a9f61ad78b2de0f # 2026.10.30102245
+        with:
+          registries: github:metio/toolchains
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.m2/repository
@@ -99,4 +108,4 @@ jobs:
           ARGS: ${{ inputs.maven-args }}
         run: |
           # shellcheck disable=SC2086 # the input is deliberately word-split
-          nix develop --command mvn $ARGS --define maven.test.skip=true package javadoc:javadoc-no-fork
+          mvn $ARGS --define maven.test.skip=true package javadoc:javadoc-no-fork
