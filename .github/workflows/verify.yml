@@ -72,12 +72,23 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./policy-check # zizmor: ignore[self-repository] dogfoods the action of this commit
+  breto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          project: breto/testdata
+      - run: jq --version
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [reuse, yaml, github-actions, markdown, dco, policy]
+    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

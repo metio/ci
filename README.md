@@ -228,6 +228,24 @@ conftest for the policy tests). See the
 Composite actions for release pipelines — call them directly from a repo's
 release workflow.
 
+### `breto`
+
+Installs [breto](https://github.com/metio/breto) from its signed release, installs
+the packages of the project's `.breto.edn` and puts the project's tools and
+variables on `PATH` and in the environment of the later steps:
+
+```yaml
+- uses: actions/checkout@<sha>
+- uses: metio/ci/breto@<sha>
+  with:
+    registries: github:metio/toolchains
+- run: breto run ci-lint
+```
+
+`version` picks the breto release (default `latest`), `project` the directory
+holding the `.breto.edn` (default `.`), and `cache: false` skips the Actions cache
+of installed packages.
+
 ### `calver`
 
 The org's single version calculator (see [Versioning](#versioning)). Named for
