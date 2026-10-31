@@ -10,9 +10,12 @@ package main
 import rego.v1
 
 # GitHub's `on:` trigger key. The conftest YAML loader resolves the bareword `on`
-# to the boolean true (YAML 1.1 bool rules), so a workflow's triggers live under
-# input[true]; the string-key branch covers a strict YAML 1.2 loader too. Only
-# one branch is ever defined for a given file, so the complete rule has one value.
+# to true (YAML 1.1 bool rules) and keys the object with its string form, so a
+# workflow's triggers live under input["true"]; the other branches cover a loader
+# that keeps the boolean key, and a strict YAML 1.2 loader. Only one branch is
+# ever defined for a given file, so the complete rule has one value.
+workflow_triggers := t if t := input["true"]
+
 workflow_triggers := t if t := input[true]
 
 workflow_triggers := t if t := input.on

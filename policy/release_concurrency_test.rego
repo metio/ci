@@ -35,3 +35,26 @@ test_no_concurrency_required_without_release_notes if {
 		not contains(msg, "no top-level concurrency block")
 	}
 }
+
+test_allows_called_workflow_without_concurrency if {
+	doc := {
+		"on": {"workflow_call": {"inputs": {"workload": {"type": "string"}}}},
+		"permissions": {"contents": "read"},
+		"jobs": {"release": {"steps": [{"uses": "metio/ci/release-notes@main"}]}},
+	}
+	msgs := deny with input as doc
+	every msg in msgs {
+		not contains(msg, "no top-level concurrency block")
+	}
+}
+
+test_flags_callable_workflow_that_also_runs_alone if {
+	bad := {
+		"on": {"workflow_call": {}, "workflow_dispatch": {}},
+		"permissions": {"contents": "write"},
+		"jobs": {"release": {"steps": [{"uses": "./release-notes"}]}},
+	}
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "no top-level concurrency block")
+}

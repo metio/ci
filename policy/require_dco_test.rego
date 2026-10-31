@@ -8,11 +8,35 @@ import rego.v1
 test_flags_pr_workflow_without_dco if {
 	bad := {
 		"on": {"pull_request": {"branches": ["main"]}},
-		"jobs": {"reuse": {"steps": [{"uses": "actions/checkout@sha"}]}},
+		"jobs": {
+			"reuse": {"steps": [{"uses": "actions/checkout@sha"}]},
+			"verify": {"name": "Verify", "needs": ["reuse"], "steps": [{"run": "true"}]},
+		},
 	}
 	msgs := deny with input as bad
 	some msg in msgs
 	contains(msg, "no DCO gate")
+}
+
+test_flags_gate_parsed_with_string_trigger_key if {
+	bad := {
+		"true": {"pull_request": {"branches": ["main"]}},
+		"jobs": {"verify": {"name": "Verify", "steps": [{"run": "true"}]}},
+	}
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "no DCO gate")
+}
+
+test_exempts_pr_workflow_beside_the_gate if {
+	ok := {
+		"on": {"pull_request": {"branches": ["main"]}},
+		"jobs": {"leaks": {"name": "leaks", "steps": [{"uses": "metio/ci/leaks@0123456789012345678901234567890123456789"}]}},
+	}
+	msgs := deny with input as ok
+	every msg in msgs {
+		not contains(msg, "no DCO gate")
+	}
 }
 
 test_allows_pr_workflow_with_shared_dco if {
