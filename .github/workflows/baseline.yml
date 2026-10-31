@@ -38,14 +38,18 @@ jobs:
     name: reuse
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # renovate: datasource=github-releases depName=astral-sh/uv
+      UV_VERSION: 0.13.6
+      # renovate: datasource=pypi depName=reuse
+      REUSE_VERSION: 6.2.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: metio/ci/breto@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
         with:
-          # renovate: datasource=pypi depName=reuse
-          packages: reuse@6.2.0
+          packages: uv@${{ env.UV_VERSION }} reuse@${{ env.REUSE_VERSION }}
       - run: reuse lint
   policy:
     name: policy
