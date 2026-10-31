@@ -248,6 +248,27 @@ holding the `.breto.edn` (default `.`), and `cache: false` skips the Actions cac
 of installed packages. `packages` installs the packages it lists, separated by
 spaces, in place of the project's `.breto.edn`.
 
+### `leaks`
+
+Scans the commits a change adds for secrets with
+[betterleaks](https://github.com/betterleaks/betterleaks): the base..head range
+of a pull request, the before..after range of a push, and the whole history on
+any other event. The job checks the repository out with `fetch-depth: 0`:
+
+```yaml
+- uses: actions/checkout@<sha>
+  with:
+    fetch-depth: 0
+    persist-credentials: false
+- uses: metio/ci/leaks@<sha>
+```
+
+Findings are redacted from the log. A finding that is no secret, such as a test
+fixture, goes into `.betterleaksignore` at the repository root as the fingerprint
+betterleaks prints for it. `range` takes git log options in place of the range
+the event implies, such as `--all`, and `path` names another repository in the
+workspace to scan.
+
 ### `calver`
 
 The org's single version calculator (see [Versioning](#versioning)). Named for

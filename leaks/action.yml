@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: leaks
+description: >
+  Scan the commits a pull request or push adds for secrets with betterleaks.
+  A pull request scans its base..head range, a push its before..after range,
+  and any other event the whole history. Findings listed in the repository's
+  .betterleaksignore are skipped. The calling job must check the repository
+  out with `fetch-depth: 0`, so every commit of the range is available.
+
+inputs:
+  range:
+    description: >
+      git log options naming the commits to scan, such as --all, in place of
+      the range the event implies.
+    required: false
+    default: ""
+  path:
+    description: The repository to scan, relative to the workspace.
+    required: false
+    default: .
+  betterleaks-version:
+    description: betterleaks release to install.
+    required: false
+    # renovate: datasource=github-releases depName=betterleaks/betterleaks extractVersion=^v(?<version>.+)$
+    default: "1.9.0"
+
+runs:
+  using: composite
+  steps:
+    - uses: metio/ci/breto@ab636fcff73cf5d7017b20ebf15493561ab99206
+      with:
+        packages: betterleaks@${{ inputs.betterleaks-version }}
+    - name: Scan for secrets
+      shell: bash
+      env:
+        RANGE: ${{ inputs.range }}
+        SCAN_PATH: ${{ inputs.path }}
+        EVENT: ${{ github.event_name }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        BEFORE: ${{ github.event.before }}
+        AFTER: ${{ github.event.after }}
+      run: |
+        set -euo pipefail
+        cd "${GITHUB_WORKSPACE}/${SCAN_PATH}"
+        if [ -z "$RANGE" ]; then
+          case "$EVENT" in
+            pull_request|pull_request_target) RANGE="${PR_BASE}..${PR_HEAD}" ;;
+            push)
+              if [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "${BEFORE}^{commit}" 2> /dev/null; then
+                RANGE="${BEFORE}..${AFTER}"
+              else
+                RANGE="-1 ${AFTER}"
+              fi
+              ;;
+          esac
+        fi
+        if [ -n "$RANGE" ]; then
+          echo "Scanning ${RANGE}"
+          betterleaks git --redact --no-banner --log-opts="$RANGE" .
+        else
+          echo "Scanning the whole history"
+          betterleaks git --redact --no-banner .
+        fi

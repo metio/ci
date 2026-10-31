@@ -94,12 +94,53 @@ jobs:
         with:
           packages: jq
       - run: jq --version
+  leaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./leaks # zizmor: ignore[self-repository] dogfoods the action of this commit
+  leaks-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Create a clean and a leaking repository
+        run: |
+          set -euo pipefail
+          for name in clean leaking; do
+            git init --quiet "probe/${name}"
+            git -C "probe/${name}" -c user.name=probe -c user.email=probe@example.com commit --quiet --allow-empty --message base
+          done
+          token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+          printf 'token = "%s"\n' "$token" > probe/leaking/settings
+          git -C probe/leaking add settings
+          git -C probe/leaking -c user.name=probe -c user.email=probe@example.com commit --quiet --message token
+      - uses: ./leaks # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/clean
+          range: --all
+      - id: leaking
+        continue-on-error: true
+        uses: ./leaks # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/leaking
+          range: --all
+      - name: Require the planted token to be found
+        env:
+          OUTCOME: ${{ steps.leaking.outcome }}
+        run: '[ "$OUTCOME" = failure ] || { echo "::error::the planted token went unreported"; exit 1; }'
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto, breto-packages]
+    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
