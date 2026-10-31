@@ -12,6 +12,7 @@ language or build tool, so every project gets the same gates from one place.
 
 | Workflow | For |
 |---|---|
+| [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks) and the [DCO](#developer-certificate-of-origin) gate |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
@@ -19,6 +20,40 @@ language or build tool, so every project gets the same gates from one place.
 | [`maven-central-release.yml`](.github/workflows/maven-central-release.yml) | Maven Central releases — the change and quota gates, the signed deploy, and the GitHub release |
 
 More languages/tools follow the same shape.
+
+### Baseline
+
+The checks every repository runs, whatever its language. Each repository calls
+the workflow from one job and gates on a second one named `Baseline`, so branch
+protection requires the same check everywhere while the jobs behind it change
+here:
+
+```yaml
+name: Baseline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    uses: metio/ci/.github/workflows/baseline.yml@<sha>
+  baseline:
+    name: Baseline
+    needs: [checks]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULT: ${{ needs.checks.result }}
+        run: '[ "$RESULT" = success ] || { echo "::error::the baseline checks ended in $RESULT"; exit 1; }'
+```
+
+It runs [`leaks`](#leaks) on every push and pull request, and [`dco`](#developer-certificate-of-origin)
+on pull requests that a person opened.
 
 ### Golang
 

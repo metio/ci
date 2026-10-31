@@ -136,12 +136,14 @@ jobs:
         env:
           OUTCOME: ${{ steps.leaking.outcome }}
         run: '[ "$OUTCOME" = failure ] || { echo "::error::the planted token went unreported"; exit 1; }'
+  baseline:
+    uses: ./.github/workflows/baseline.yml
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe]
+    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe, baseline]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

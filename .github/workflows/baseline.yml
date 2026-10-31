@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+# The checks every repository runs, whatever its language. Callers name one job
+# `Baseline` that needs the call, so the required check stays fixed while jobs
+# come and go here.
+name: Baseline
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  leaks:
+    name: leaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: metio/ci/leaks@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+  dco:
+    name: dco
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: metio/ci/dco@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
