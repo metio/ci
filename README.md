@@ -2,6 +2,7 @@
 SPDX-FileCopyrightText: The ci Authors
 SPDX-License-Identifier: 0BSD
 -->
+
 # ci
 
 Shared GitHub Actions CI for the `metio` organization: one reusable workflow per
@@ -609,4 +610,4 @@ brevity.
 
 ## License
 
-[0BSD](LICENSES/0BSD.txt), REUSE-compliant.
+[0BSD](LICENSES/0BSD.txt).
