@@ -117,7 +117,8 @@ jobs:
             git init --quiet "probe/${name}"
             git -C "probe/${name}" -c user.name=probe -c user.email=probe@example.com commit --quiet --allow-empty --message base
           done
-          token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+          chars=$(head -c 1024 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')
+          token="ghp_${chars:0:36}"
           printf 'token = "%s"\n' "$token" > probe/leaking/settings
           git -C probe/leaking add settings
           git -C probe/leaking -c user.name=probe -c user.email=probe@example.com commit --quiet --message token
