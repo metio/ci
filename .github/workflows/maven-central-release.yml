@@ -70,15 +70,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: gate
-        uses: metio/ci/needs-release@21ce4ec08a0516b39fcd5985472f0d53ec11e338 # 2026.10.31095959
+        uses: metio/ci/needs-release@83b860b0502f4b934feba0dfda9de689e0cfd100 # 2026.10.31103505
         with:
           paths: ${{ inputs.paths }}
       - id: quota
         if: steps.gate.outputs.needed == 'true'
-        uses: metio/ci/central-quota@21ce4ec08a0516b39fcd5985472f0d53ec11e338 # 2026.10.31095959
+        uses: metio/ci/central-quota@83b860b0502f4b934feba0dfda9de689e0cfd100 # 2026.10.31103505
       - id: version
         if: steps.gate.outputs.needed == 'true' && steps.quota.outputs.available == 'true'
-        uses: metio/ci/calver@21ce4ec08a0516b39fcd5985472f0d53ec11e338 # 2026.10.31095959
+        uses: metio/ci/calver@83b860b0502f4b934feba0dfda9de689e0cfd100 # 2026.10.31103505
 
   central:
     name: Maven Central
@@ -156,7 +156,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: notes
-        uses: metio/ci/release-notes@21ce4ec08a0516b39fcd5985472f0d53ec11e338 # 2026.10.31095959
+        uses: metio/ci/release-notes@83b860b0502f4b934feba0dfda9de689e0cfd100 # 2026.10.31103505
         with:
           version: ${{ needs.gate.outputs.version }}
           previous: ${{ needs.gate.outputs.last }}
