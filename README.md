@@ -377,24 +377,21 @@ earliest slots, so a downstream repo's own slot already sees the new parent:
 | Day | Repo |
 |---|---|
 | 1 | `maven-parent` |
-| 4 | `maven-build-process` |
-| 7 | `hcf4j` |
-| 10 | `reguloj` |
-| 13 | `storage-units.java` |
-| 16 | `memoization.java` |
-| 19 | `yosql` |
-| 22 | `javapoet-type-guesser` |
-| 25 | `thats-interesting.java` |
-| 28 | `devcontainer.java` |
+| 2 | `devcontainer.java` |
+| 3 | `reguloj` |
+| 4 | `storage-units.java` |
+| 5 | `memoization.java` |
+| 6 | `javapoet-type-guesser` |
+| 8 | `yosql` |
 
-Ten slots against a budget of seven is deliberate: in a typical month most repos
-have no changes and skip themselves, and the quota guard is what holds the line
-in the months where more than seven do. The limit is a three-month average, so an
+Seven slots fit a budget of seven, and in a typical month most repos have no
+changes and skip themselves. The quota guard holds the line when manual
+`workflow_dispatch` runs push a month past the limit. The limit is a three-month average, so an
 occasional busy month (a security fix, a coordinated bump) is expected to be fine.
 
 A repo earns a slot by deploying to Central from its release workflow, which is
 not the same as having a `pom.xml`: `ilo` is a Maven project that ships native
-binaries on its GitHub release, and `kdk` and `krei` are archived.
+binaries on its GitHub release.
 
 This applies only to Maven Central. GitHub releases, container images, and Go
 modules are unmetered, so those repos keep releasing on every qualifying push.
