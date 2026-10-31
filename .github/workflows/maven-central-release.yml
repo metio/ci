@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Maven Central Release
+
+# Reusable calendar-versioned release to Maven Central. Two gates guard the
+# deploy: the release paths must have changed since the last release, and the
+# organization's shared Maven Central budget must have room (central-quota).
+# A skipped run loses nothing, because the gate measures against the last
+# release, so pending changes ride the next slot.
+#
+# The caller's contract:
+#   - a .breto.edn naming one JDK group and @maven
+#   - a pom.xml inheriting wtf.metio.maven:maven-parent, whose `release` profile
+#     signs with sign-maven-plugin and uploads with central-publishing-maven-plugin
+#     through server id "central"
+#   - a monthly schedule on its own day (see the central-quota slot table) and
+#     `permissions: contents: write`
+#
+#   jobs:
+#     release:
+#       uses: metio/ci/.github/workflows/maven-central-release.yml@<sha>
+#       with:
+#         paths: src/main/java pom.xml
+#       secrets: inherit
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: Space-separated paths whose changes warrant a release.
+        type: string
+        required: true
+      deploy-args:
+        description: Extra arguments for the deploy, e.g. `--projects a --also-make`.
+        type: string
+        default: ""
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+    secrets:
+      MAVEN_CENTRAL_USERNAME:
+        required: true
+      MAVEN_CENTRAL_TOKEN:
+        required: true
+      GPG_SECRET_KEY_BASE64:
+        required: true
+      GPG_SECRET_KEY_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maven-central-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    outputs:
+      release: ${{ steps.gate.outputs.needed == 'true' && steps.quota.outputs.available == 'true' }}
+      last: ${{ steps.gate.outputs.last }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: gate
+        uses: metio/ci/needs-release@4e1bc9f3d854998e07b63b20a49dd60e652c0d32 # 2026.10.30204559
+        with:
+          paths: ${{ inputs.paths }}
+      - id: quota
+        if: steps.gate.outputs.needed == 'true'
+        uses: metio/ci/central-quota@4e1bc9f3d854998e07b63b20a49dd60e652c0d32 # 2026.10.30204559
+      - id: version
+        if: steps.gate.outputs.needed == 'true' && steps.quota.outputs.available == 'true'
+        uses: metio/ci/calver@4e1bc9f3d854998e07b63b20a49dd60e652c0d32 # 2026.10.30204559
+
+  central:
+    name: Maven Central
+    needs: [gate]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-${{ runner.os }}-
+      - name: Set the release version
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: >
+          mvn --batch-mode --no-transfer-progress
+          --define newVersion="$VERSION"
+          --define generateBackupPoms=false
+          versions:set
+      - name: Write the signing key and the Central credentials
+        env:
+          GPG_SECRET_KEY_BASE64: ${{ secrets.GPG_SECRET_KEY_BASE64 }}
+        run: |
+          echo "$GPG_SECRET_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.key.asc"
+          # The credentials stay in the environment, so the settings file holds no secret.
+          cat > "$RUNNER_TEMP/settings.xml" <<'XML'
+          <settings>
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${env.MAVEN_CENTRAL_USERNAME}</username>
+                <password>${env.MAVEN_CENTRAL_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
+      - name: Publish to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+          SIGN_KEY_PASS: ${{ secrets.GPG_SECRET_KEY_PASSWORD }}
+          DEPLOY_ARGS: ${{ inputs.deploy-args }}
+        run: |
+          # shellcheck disable=SC2086 # DEPLOY_ARGS is deliberately word-split
+          mvn --batch-mode --no-transfer-progress \
+            --settings "$RUNNER_TEMP/settings.xml" \
+            --activate-profiles release \
+            --define project.build.outputTimestamp="$(git log -1 --format=%cI)" \
+            --define sign.keyFile="$RUNNER_TEMP/signing.key.asc" \
+            --define sign.keyPass="$SIGN_KEY_PASS" \
+            $DEPLOY_ARGS \
+            deploy
+
+  github:
+    # central-quota counts GitHub releases, so a failed deploy must not create one.
+    name: GitHub Release
+    needs: [gate, central]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: notes
+        uses: metio/ci/release-notes@4e1bc9f3d854998e07b63b20a49dd60e652c0d32 # 2026.10.30204559
+        with:
+          version: ${{ needs.gate.outputs.version }}
+          previous: ${{ needs.gate.outputs.last }}
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.gate.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.file }}
+        run: gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file "$NOTES"
