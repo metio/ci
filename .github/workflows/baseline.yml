@@ -34,3 +34,25 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: metio/ci/dco@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+  reuse:
+    name: reuse
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/breto@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+        with:
+          # renovate: datasource=pypi depName=reuse
+          packages: reuse@6.2.0
+      - run: reuse lint
+  policy:
+    name: policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/policy-check@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114

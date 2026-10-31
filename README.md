@@ -12,7 +12,7 @@ language or build tool, so every project gets the same gates from one place.
 
 | Workflow | For |
 |---|---|
-| [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks) and the [DCO](#developer-certificate-of-origin) gate |
+| [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance and the [convention policies](#convention-policies) |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
@@ -52,7 +52,8 @@ jobs:
         run: '[ "$RESULT" = success ] || { echo "::error::the baseline checks ended in $RESULT"; exit 1; }'
 ```
 
-It runs [`leaks`](#leaks) on every push and pull request, and [`dco`](#developer-certificate-of-origin)
+It runs [`leaks`](#leaks), `reuse lint` and the [convention policies](#convention-policies) on every
+push and pull request, and [`dco`](#developer-certificate-of-origin)
 on pull requests that a person opened.
 
 ### Golang
@@ -609,34 +610,10 @@ blocks the merge. The policies live at the action's pinned ref, so bumping the
 
 Every commit must carry a `Signed-off-by:` trailer (`git commit --signoff`), so
 each contribution records agreement to the [DCO](https://developercertificate.org/).
-The [`dco`](dco) composite action enforces it over the pull request range - add
-the same two-line job to a repo's `verify.yml` and list it in the `Verify`
-aggregate:
-
-```yaml
-# in a project's verify.yml
-jobs:
-  dco:
-    # Bots (Renovate/Dependabot) can not sign off; skip them. A skipped job still
-    # satisfies the all-green aggregate.
-    if: github.event.pull_request.user.type != 'Bot'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@<sha>
-        with:
-          fetch-depth: 0                 # the whole PR range must be readable
-      - uses: metio/ci/dco@<sha>
-```
-
-The check is carried by the action's pinned ref, so bumping the `dco` pin
-(Renovate does this) updates it everywhere at once - the same model as
-`policy-check`. To make DCO non-optional across the org (rather than opt-in per
-repo), add a `require-dco` convention policy in [`policy/`](policy) that denies a
-`verify.yml` whose `Verify` aggregate has no `dco` job: because every repo already
-runs `policy-check`, that turns "missing DCO" into a failed gate everywhere at
-once. Roll it out after the repos carry the job, since the policy fails any repo
-that does not yet.
+The [`dco`](dco) composite action enforces it over the pull request range, and
+the [Baseline](#baseline) workflow runs it in every repository, so the required
+`Baseline` check fails a pull request with an unsigned commit. Bots (Renovate,
+Dependabot) can not sign off, so their pull requests skip it.
 
 ## Versioning
 
