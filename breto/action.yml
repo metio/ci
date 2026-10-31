@@ -14,6 +14,12 @@ inputs:
   project:
     description: The project directory, relative to the workspace.
     default: .
+  packages:
+    description: >
+      Packages to install in place of the project's .breto.edn, separated by
+      spaces, such as betterleaks@1.9.0. The project directory is then left
+      alone.
+    default: ""
   registries:
     description: >
       Registries read after the definitions built into breto, one per line:
@@ -95,8 +101,19 @@ runs:
       env:
         REGISTRIES: ${{ inputs.registries }}
         PROJECT: ${{ inputs.project }}
+        PACKAGES: ${{ inputs.packages }}
       run: | # zizmor: ignore[github-env] breto validates variable names and delimits multi-line values
         set -euo pipefail
+        if [ -n "$PACKAGES" ]; then
+          project="${RUNNER_TEMP}/breto/project"
+          mkdir -p "$project"
+          printf '{:packages [' > "${project}/.breto.edn"
+          for package in $PACKAGES; do printf '"%s" ' "$(printf '%s' "$package" | sed 's/[\\"]/\\&/g')"; done >> "${project}/.breto.edn"
+          printf ']}\n' >> "${project}/.breto.edn"
+        else
+          project="${GITHUB_WORKSPACE}/${PROJECT}"
+        fi
+        echo "project=${project}" >> "$GITHUB_OUTPUT"
         config="${RUNNER_TEMP}/breto/config.edn"
         {
           printf '{:registries ['
@@ -115,8 +132,8 @@ runs:
         echo "BRETO_CONFIG=${config}" >> "$GITHUB_ENV"
         key=$({
           cat "$config"
+          for f in "${project}/.breto.edn" "${project}/.breto.local.edn"; do [ -f "$f" ] && cat "$f"; done
           cd "${GITHUB_WORKSPACE}"
-          for f in "${PROJECT}/.breto.edn" "${PROJECT}/.breto.local.edn"; do [ -f "$f" ] && cat "$f"; done
           while IFS= read -r dir; do
             [ -n "$dir" ] || continue
             [ "${dir#github:}" = "$dir" ] || continue
@@ -136,7 +153,7 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
-        PROJECT: ${{ inputs.project }}
+        PROJECT: ${{ steps.config.outputs.project }}
         REGISTRIES: ${{ inputs.registries }}
       run: | # zizmor: ignore[github-env] breto validates variable names and delimits multi-line values
         set -euo pipefail
@@ -148,7 +165,7 @@ runs:
         done <<< "$REGISTRIES"
         if [ "${#published[@]}" -gt 0 ]; then breto update "${published[@]}"; fi
         out="${RUNNER_TEMP}/breto/env"
-        breto env --dir "${GITHUB_WORKSPACE}/${PROJECT}" --shell github > "$out"
+        breto env --dir "$PROJECT" --shell github > "$out"
         cat "$out" >> "$GITHUB_ENV"
         bin=$(sed -n 's/^BRETO_ENV_BIN=//p' "$out")
         if [ -n "$bin" ]; then echo "$bin" >> "$GITHUB_PATH"; fi

@@ -245,7 +245,8 @@ variables on `PATH` and in the environment of the later steps:
 
 `version` picks the breto release (default `latest`), `project` the directory
 holding the `.breto.edn` (default `.`), and `cache: false` skips the Actions cache
-of installed packages.
+of installed packages. `packages` installs the packages it lists, separated by
+spaces, in place of the project's `.breto.edn`.
 
 ### `calver`
 
