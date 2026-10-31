@@ -15,6 +15,7 @@ language or build tool, so every project gets the same gates from one place.
 | [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
+| [`maven-central-release.yml`](.github/workflows/maven-central-release.yml) | Maven Central releases — the change and quota gates, the signed deploy, and the GitHub release |
 
 More languages/tools follow the same shape.
 
@@ -117,8 +118,8 @@ build for a per-visitor bundle-size measurement), alongside the shared `runs-on`
 
 ### Maven
 
-The Maven pipeline is **flake-driven and POM-driven**: the JDK and Maven come
-from the calling repo's devShell, and the gates themselves are the build. A
+The Maven pipeline is **breto-driven and POM-driven**: the JDK and Maven come
+from the calling repo's `.breto.edn`, and the gates themselves are the build. A
 metio Java project inherits `wtf.metio.maven:maven-parent`, which configures the
 static-analysis battery (checkstyle, pmd, spotbugs, dependency analysis, pitest)
 into the `verify` lifecycle — so a plugin is added and tuned in the POM, where
@@ -160,6 +161,40 @@ jobs cache `~/.m2/repository` keyed on the POMs. Four optional inputs cover the
 variation: `goals` (default `verify`), `maven-args` (default
 `--batch-mode --no-transfer-progress`), `javadoc` (set `false` for a project
 with no Java sources), and the shared `runs-on`.
+
+### Maven Central release
+
+`maven-central-release.yml` releases a project inheriting `maven-parent` on its
+monthly slot (see [`central-quota`](#central-quota)). The `gate` job asks
+[`needs-release`](#needs-release) whether `paths` changed since the last release
+and `central-quota` whether the month's budget has room; only then does the
+`central` job set the calendar version, sign and deploy through the `release`
+profile, and the `github` job create the release that `central-quota` counts.
+
+```yaml
+# .github/workflows/release.yml in a Maven project
+name: Release
+on:
+  schedule:
+    - cron: 23 4 3 * *    # the repo's day of the month
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+jobs:
+  release:
+    uses: metio/ci/.github/workflows/maven-central-release.yml@<sha>
+    with:
+      paths: src/main/java pom.xml
+    secrets: inherit
+```
+
+The caller provides the secrets `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_TOKEN`,
+`GPG_SECRET_KEY_BASE64` and `GPG_SECRET_KEY_PASSWORD`. `deploy-args` adds
+arguments to the deploy, such as `--projects a --also-make` to publish only part
+of a reactor.
 
 ## Shared devShell
 
