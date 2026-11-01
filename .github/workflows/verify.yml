@@ -33,10 +33,10 @@ jobs:
           changed=$(git diff --name-only "$BASE...$HEAD")
           touches() { if printf '%s\n' "$changed" | grep -qE "$1"; then echo true; else echo false; fi; }
           {
-            echo "policy=$(touches '^(policy|policy-check)/')"
-            echo "dco=$(touches '^dco/')"
-            echo "leaks=$(touches '^(leaks|breto)/')"
-            echo "breto=$(touches '^breto/')"
+            echo "policy=$(touches '^((policy|policy-check)/|\.github/workflows/verify\.yml$)')"
+            echo "dco=$(touches '^(dco/|\.github/workflows/verify\.yml$)')"
+            echo "leaks=$(touches '^((leaks|breto)/|\.github/workflows/verify\.yml$)')"
+            echo "breto=$(touches '^(breto/|\.github/workflows/verify\.yml$)')"
           } >> "$GITHUB_OUTPUT"
   yaml:
     runs-on: ubuntu-latest
@@ -112,15 +112,6 @@ jobs:
         with:
           project: breto/testdata
       - run: jq --version
-  breto-packages:
-    needs: [changes]
-    if: needs.changes.outputs.breto == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
       - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
         with:
           packages: jq
@@ -165,7 +156,7 @@ jobs:
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [changes, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks-probe]
+    needs: [changes, yaml, github-actions, markdown, dco, policy, breto, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
