@@ -8,6 +8,36 @@ on:
 permissions:
   contents: read
 jobs:
+  changes:
+    # Which shipped actions the pull request touches. Baseline checks every
+    # pull request with the pinned actions, so a job dogfooding an action of
+    # this commit only runs when that action changed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      policy: ${{ steps.paths.outputs.policy }}
+      dco: ${{ steps.paths.outputs.dco }}
+      leaks: ${{ steps.paths.outputs.leaks }}
+      breto: ${{ steps.paths.outputs.breto }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE...$HEAD")
+          touches() { if printf '%s\n' "$changed" | grep -qE "$1"; then echo true; else echo false; fi; }
+          {
+            echo "policy=$(touches '^(policy|policy-check)/')"
+            echo "dco=$(touches '^dco/')"
+            echo "leaks=$(touches '^(leaks|breto)/')"
+            echo "breto=$(touches '^breto/')"
+          } >> "$GITHUB_OUTPUT"
   yaml:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -47,7 +77,8 @@ jobs:
   dco:
     # Dogfood the dco action of this commit; Baseline runs the pinned one.
     # Bot PRs skip.
-    if: github.event.pull_request.user.type != 'Bot'
+    needs: [changes]
+    if: needs.changes.outputs.dco == 'true' && github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -57,6 +88,8 @@ jobs:
           persist-credentials: false
       - uses: ./dco # zizmor: ignore[self-repository] dogfoods the action of this commit
   policy:
+    needs: [changes]
+    if: needs.changes.outputs.policy == 'true'
     # Dogfood the policy-check action of this commit, so a change to a policy
     # is checked against our own workflows, actions and Containerfiles.
     runs-on: ubuntu-latest
@@ -67,6 +100,8 @@ jobs:
           persist-credentials: false
       - uses: ./policy-check # zizmor: ignore[self-repository] dogfoods the action of this commit
   breto:
+    needs: [changes]
+    if: needs.changes.outputs.breto == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -78,6 +113,8 @@ jobs:
           project: breto/testdata
       - run: jq --version
   breto-packages:
+    needs: [changes]
+    if: needs.changes.outputs.breto == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -89,6 +126,8 @@ jobs:
           packages: jq
       - run: jq --version
   leaks-probe:
+    needs: [changes]
+    if: needs.changes.outputs.leaks == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -126,7 +165,7 @@ jobs:
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks-probe]
+    needs: [changes, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
