@@ -8,17 +8,6 @@ on:
 permissions:
   contents: read
 jobs:
-  reuse:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
-        with:
-          registries: github:metio/toolchains
-      - run: ci-reuse
   yaml:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -56,9 +45,8 @@ jobs:
           registries: github:metio/toolchains
       - run: ci-markdown
   dco:
-    # Dogfood the dco action this repo ships: every commit must carry a
-    # Signed-off-by trailer. The require-dco policy (run by the policy job below)
-    # holds this very workflow to having this job. Bot PRs skip.
+    # Dogfood the dco action of this commit; Baseline runs the pinned one.
+    # Bot PRs skip.
     if: github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,10 +57,8 @@ jobs:
           persist-credentials: false
       - uses: ./dco # zizmor: ignore[self-repository] dogfoods the action of this commit
   policy:
-    # Dogfood the policy-check action this repo ships: it runs the conftest
-    # convention policies (SHA-pinned uses, no local refs in reusable workflows,
-    # no untrusted run: interpolation, permissions, release concurrency, job
-    # timeouts, require-dco) over our own workflows and actions.
+    # Dogfood the policy-check action of this commit, so a change to a policy
+    # is checked against our own workflows, actions and Containerfiles.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -144,14 +130,12 @@ jobs:
         env:
           OUTCOME: ${{ steps.leaking.outcome }}
         run: '[ "$OUTCOME" = failure ] || { echo "::error::the planted token went unreported"; exit 1; }'
-  baseline:
-    uses: ./.github/workflows/baseline.yml
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [reuse, yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe, baseline]
+    needs: [yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
