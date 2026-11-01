@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # main
+      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
         with:
           registries: github:metio/toolchains
       - id: goenv
@@ -101,7 +101,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # main
+      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
         with:
           registries: github:metio/toolchains
       - id: goenv
@@ -144,7 +144,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # main
+      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
         with:
           registries: github:metio/toolchains
       - id: goenv
@@ -168,7 +168,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # main
+      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
         with:
           registries: github:metio/toolchains
       - id: goenv
