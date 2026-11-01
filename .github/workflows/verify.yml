@@ -19,6 +19,7 @@ jobs:
       dco: ${{ steps.paths.outputs.dco }}
       leaks: ${{ steps.paths.outputs.leaks }}
       breto: ${{ steps.paths.outputs.breto }}
+      babashka-executable: ${{ steps.paths.outputs.babashka-executable }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -37,6 +38,7 @@ jobs:
             echo "dco=$(touches '^(dco/|\.github/workflows/verify\.yml$)')"
             echo "leaks=$(touches '^((leaks|breto)/|\.github/workflows/verify\.yml$)')"
             echo "breto=$(touches '^(breto/|\.github/workflows/verify\.yml$)')"
+            echo "babashka-executable=$(touches '^(babashka-executable/|\.github/workflows/verify\.yml$)')"
           } >> "$GITHUB_OUTPUT"
   lint:
     runs-on: ubuntu-latest
@@ -51,6 +53,40 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: breto run ci-lint
+  babashka-executable:
+    needs: [changes]
+    if: needs.changes.outputs.babashka-executable == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          registries: github:metio/toolchains
+          packages: "@babashka"
+      - name: Build an uberjar
+        run: |
+          mkdir -p "${RUNNER_TEMP}/src/hello"
+          echo '(ns hello.main) (defn -main [& _] (println "hello"))' > "${RUNNER_TEMP}/src/hello/main.clj"
+          bb --classpath "${RUNNER_TEMP}/src" uberjar "${RUNNER_TEMP}/hello.jar" -m hello.main
+      - id: executable
+        uses: ./babashka-executable # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          name: hello
+          jar: ${{ runner.temp }}/hello.jar
+          version: "1"
+          directory: ${{ runner.temp }}/dist
+      - name: Run the executable away from the jar
+        env:
+          DIRECTORY: ${{ steps.executable.outputs.directory }}
+          CHECKSUMS: ${{ steps.executable.outputs.checksums }}
+        run: |
+          rm "${RUNNER_TEMP}/hello.jar"
+          [ "$(env --ignore-environment "${DIRECTORY}/hello-linux-amd64")" = hello ]
+          (cd "$DIRECTORY" && sha256sum --check "$(basename "$CHECKSUMS")")
+          [ "$(wc -l < "$CHECKSUMS")" = 4 ]
   dco:
     # Dogfood the dco action of this commit; Baseline runs the pinned one.
     # Bot PRs skip.
@@ -133,7 +169,7 @@ jobs:
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [changes, lint, dco, policy, breto, leaks-probe]
+    needs: [changes, lint, dco, policy, breto, babashka-executable, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

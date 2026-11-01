@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Babashka executable
+description: >
+  Turn an uberjar into self-contained executables by prepending the babashka
+  binary of each platform to it, using the version of babashka on PATH, and write
+  their checksums next to them. Sign the checksums with cosign-sign-blob.
+
+inputs:
+  name:
+    description: Name of the program; executables are written as <name>-<os>-<arch>.
+    required: true
+  jar:
+    description: Path to the uberjar, built with bb uberjar.
+    required: true
+  version:
+    description: Release version; the checksums are written as <name>_<version>_SHA256SUMS.
+    required: true
+  directory:
+    description: Directory to write the executables and checksums to.
+    default: dist
+  token:
+    description: Token for downloading the babashka releases.
+    default: ${{ github.token }}
+
+outputs:
+  directory:
+    description: Directory holding the executables and checksums.
+    value: ${{ inputs.directory }}
+  checksums:
+    description: Path to the checksums file.
+    value: ${{ inputs.directory }}/${{ inputs.name }}_${{ inputs.version }}_SHA256SUMS
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        NAME: ${{ inputs.name }}
+        JAR: ${{ inputs.jar }}
+        VERSION: ${{ inputs.version }}
+        DIRECTORY: ${{ inputs.directory }}
+      run: |
+        set -euo pipefail
+        bb_version=$(bb --version | sed 's/^babashka v//')
+        work=$(mktemp -d)
+        mkdir -p "$DIRECTORY"
+        for target in linux-amd64:linux-amd64-static linux-aarch64:linux-aarch64-static \
+                      darwin-amd64:macos-amd64 darwin-aarch64:macos-aarch64; do
+          tarball="babashka-${bb_version}-${target#*:}.tar.gz"
+          gh release download "v${bb_version}" --repo babashka/babashka --dir "$work" \
+            --pattern "${tarball}" --pattern "${tarball}.sha256"
+          echo "$(cat "${work}/${tarball}.sha256")  ${work}/${tarball}" | sha256sum --check
+          tar --extract --gzip --file "${work}/${tarball}" --directory "$work" bb
+          cat "${work}/bb" "$JAR" > "${DIRECTORY}/${NAME}-${target%%:*}"
+          chmod +x "${DIRECTORY}/${NAME}-${target%%:*}"
+          rm "${work}/bb"
+        done
+        (cd "$DIRECTORY" && sha256sum "${NAME}"-* > "${NAME}_${VERSION}_SHA256SUMS")

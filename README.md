@@ -266,6 +266,28 @@ signed releases, or a breto registry map for other hosts and signers:
       {:forgejo "codeberg.org/OWNER/REPO" :signature false}
 ```
 
+### `babashka-executable`
+
+Turns an uberjar into self-contained executables for Linux and macOS on amd64 and
+arm64, by prepending the babashka binary of each platform to it. A babashka
+executable carries no JVM, so it suits programs that babashka can run as they are;
+programs that load Java libraries need a native image or a JVM instead. It uses the
+version of `bb` on `PATH`, so install that first with [`breto`](#breto).
+
+```yaml
+- run: bb uberjar target/tool.jar -m tool.main
+- id: executable
+  uses: metio/ci/babashka-executable@<sha>
+  with:
+    name: tool
+    jar: target/tool.jar
+    version: ${{ steps.version.outputs.version }}
+- uses: metio/ci/cosign-sign-blob@<sha>
+  with:
+    file: ${{ steps.executable.outputs.checksums }}
+- run: gh release create "$VERSION" dist/*
+```
+
 ### `leaks`
 
 Scans the commits a change adds for secrets with
