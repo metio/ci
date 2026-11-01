@@ -78,3 +78,52 @@ test_ignores_a_workflow if {
 		not contains(msg, "USER")
 	}
 }
+
+test_a_labelled_reason_allows_a_final_stage_without_a_user if {
+	ok := [
+		instruction("from", 0, ["docker.io/library/alpine", "AS", "build"]),
+		instruction("from", 1, ["scratch"]),
+		instruction("label", 1, ["wtf.metio.ci.root-allowed", "\"data only\"", "="]),
+	]
+	count(deny) == 0 with input as ok
+}
+
+test_a_labelled_reason_allows_a_root_user if {
+	ok := [
+		instruction("from", 0, ["docker.io/library/alpine"]),
+		instruction("label", 0, ["org.opencontainers.image.title", "dev", "=", "wtf.metio.ci.root-allowed", "\"dev shell\"", "="]),
+		instruction("user", 0, ["root"]),
+	]
+	count(deny) == 0 with input as ok
+}
+
+test_an_empty_reason_allows_nothing if {
+	bad := [
+		instruction("from", 0, ["docker.io/library/alpine"]),
+		instruction("label", 0, ["wtf.metio.ci.root-allowed", "\"\"", "="]),
+	]
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "declares no USER")
+}
+
+test_a_label_of_a_build_stage_allows_nothing if {
+	bad := [
+		instruction("from", 0, ["docker.io/library/alpine", "AS", "build"]),
+		instruction("label", 0, ["wtf.metio.ci.root-allowed", "\"build\"", "="]),
+		instruction("from", 1, ["docker.io/library/alpine"]),
+	]
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "declares no USER")
+}
+
+test_a_label_value_named_like_the_key_allows_nothing if {
+	bad := [
+		instruction("from", 0, ["docker.io/library/alpine"]),
+		instruction("label", 0, ["note", "wtf.metio.ci.root-allowed", "=", "x", "y", "="]),
+	]
+	msgs := deny with input as bad
+	some msg in msgs
+	contains(msg, "declares no USER")
+}

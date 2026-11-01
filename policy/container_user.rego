@@ -38,14 +38,29 @@ is_root_user(value) if startswith(value, "root:")
 
 is_root_user(value) if startswith(value, "0:")
 
-deny contains msg if {
-	is_containerfile
-	count(final_stage_users) == 0
-	msg := "the final build stage declares no USER, so the image runs as whatever its base image defaults to — add a USER with a non-root uid"
+# An image that ships only data, or must run as root, says why in a label of
+# its final stage: LABEL wtf.metio.ci.root-allowed="REASON". The dockerfile
+# parser drops comments, so the reason has to be an instruction.
+root_allowed if {
+	some entry in input
+	entry.Cmd == "label"
+	entry.Stage == final_stage
+	some i, key in entry.Value
+	i % 3 == 0
+	key == "wtf.metio.ci.root-allowed"
+	trim(entry.Value[i + 1], "\"' ") != ""
 }
 
 deny contains msg if {
 	is_containerfile
+	not root_allowed
+	count(final_stage_users) == 0
+	msg := "the final build stage declares no USER, so the image runs as whatever its base image defaults to — add a USER with a non-root uid, or LABEL wtf.metio.ci.root-allowed=\"REASON\""
+}
+
+deny contains msg if {
+	is_containerfile
+	not root_allowed
 	some value in final_stage_users
 	is_root_user(value)
 	msg := sprintf("the final build stage runs as %q; run as a non-root uid instead", [value])

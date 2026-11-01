@@ -555,6 +555,13 @@ Each rule is a `deny`, so a violation fails the gate and blocks the merge:
   devShell), and shared metio/ci composites own their internal tool pins.
   Repos without a flake are unaffected. One rule is unconditional: a job that
   runs `nix develop` must have a step installing nix first.
+- **Non-root containers** — the final stage of every `Containerfile` and
+  `Dockerfile` declares a `USER` that is neither `root` nor uid `0`; without
+  one, the image runs as whatever its base image defaults to. An image that
+  ships only data, or has to run as root, such as a development shell, states
+  why in a label of its final stage instead:
+  `LABEL wtf.metio.ci.root-allowed="data image, runs nothing"`. The reason
+  must not be empty, and a label of an earlier stage does not count.
 
 ### Run the policies in another repo
 
