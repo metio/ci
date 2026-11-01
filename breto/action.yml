@@ -162,13 +162,13 @@ runs:
         REGISTRIES: ${{ inputs.registries }}
       run: | # zizmor: ignore[github-env] breto validates variable names and delimits multi-line values
         set -euo pipefail
-        published=()
+        published=(registry-metio-packages)
         while IFS= read -r dir; do
           case "$dir" in
             github:*) repo="${dir#github:}"; published+=("registry-${repo//\//-}") ;;
           esac
         done <<< "$REGISTRIES"
-        if [ "${#published[@]}" -gt 0 ]; then breto update "${published[@]}"; fi
+        breto update "${published[@]}"
         out="${RUNNER_TEMP}/breto/env"
         breto env --dir "$PROJECT" --shell github > "$out"
         cat "$out" >> "$GITHUB_ENV"
