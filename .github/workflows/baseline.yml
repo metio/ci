@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/leaks@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+      - uses: metio/ci/leaks@8445885c5f9e9b7d47d4fb0736a7b28d8789c2f4 # main
   dco:
     name: dco
     if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot'
@@ -33,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/dco@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+      - uses: metio/ci/dco@8445885c5f9e9b7d47d4fb0736a7b28d8789c2f4 # main
   reuse:
     name: reuse
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+      - uses: metio/ci/breto@8445885c5f9e9b7d47d4fb0736a7b28d8789c2f4 # main
         with:
           packages: uv@${{ env.UV_VERSION }} reuse@${{ env.REUSE_VERSION }}
       - run: reuse lint
@@ -59,4 +59,4 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/policy-check@ac4eab9855ea1c083e82ee4a143a4ecaa9f1cb4f # 2026.10.31214114
+      - uses: metio/ci/policy-check@8445885c5f9e9b7d47d4fb0736a7b28d8789c2f4 # main
