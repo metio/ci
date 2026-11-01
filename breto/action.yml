@@ -24,9 +24,11 @@ inputs:
     description: >
       Registries read after the default registries, one per line:
       a directory with package definitions and groups, relative to the
-      workspace, or github:OWNER/REPO for the registry that repository
-      publishes as signed releases, which is installed at its latest
-      release.
+      workspace; github:OWNER/REPO or gitlab:gitlab.com/GROUP/PROJECT for
+      the registry that repository publishes as signed releases, which is
+      installed at its latest release; or a breto registry map such as
+      {:forgejo "codeberg.org/OWNER/REPO" :signature false} for any other
+      host, signer or :tag-prefix.
     default: ""
   cache:
     description: Whether to keep the installed packages in the Actions cache.
@@ -120,7 +122,10 @@ runs:
           while IFS= read -r dir; do
             case "$dir" in
               "") continue ;;
-              github:*) printf '{:github "%s"} ' "${dir#github:}" ;;
+              github:* | gitlab:*)
+                printf '{:%s "%s"} ' "${dir%%:*}" "$(printf '%s' "${dir#*:}" | sed 's/[\\"]/\\&/g')"
+                ;;
+              "{"*) printf '%s ' "$dir" ;;
               *)
                 path=$(cd "${GITHUB_WORKSPACE}/${dir}" && pwd)
                 printf '"%s" ' "$(printf '%s' "$path" | sed 's/[\\"]/\\&/g')"
@@ -136,7 +141,7 @@ runs:
           cd "${GITHUB_WORKSPACE}"
           while IFS= read -r dir; do
             [ -n "$dir" ] || continue
-            [ "${dir#github:}" = "$dir" ] || continue
+            case "$dir" in github:* | gitlab:* | "{"*) continue ;; esac
             find "$dir" -maxdepth 1 \( -name '*.edn' -o -name breto.lock \) -type f | LC_ALL=C sort | xargs cat
           done <<< "$REGISTRIES"
         } | { if command -v sha256sum > /dev/null; then sha256sum; else shasum --algorithm 256; fi; } | cut -d ' ' -f 1)

@@ -255,7 +255,16 @@ variables on `PATH` and in the environment of the later steps:
 `version` picks the breto release (default `latest`), `project` the directory
 holding the `.breto.edn` (default `.`), and `cache: false` skips the Actions cache
 of installed packages. `packages` installs the packages it lists, separated by
-spaces, in place of the project's `.breto.edn`.
+spaces, in place of the project's `.breto.edn`. `registries` adds registries after
+breto's default metio/packages, one per line: a directory in the workspace,
+`github:OWNER/REPO` or `gitlab:gitlab.com/GROUP/PROJECT` for a registry published as
+signed releases, or a breto registry map for other hosts and signers:
+
+```yaml
+    registries: |
+      github:metio/toolchains
+      {:forgejo "codeberg.org/OWNER/REPO" :signature false}
+```
 
 ### `leaks`
 
