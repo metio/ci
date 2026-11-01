@@ -34,7 +34,7 @@ jobs:
       - id: gate
         uses: ./needs-release # zizmor: ignore[self-repository] dogfoods the action of this commit
         with:
-          paths: .github/workflows calver needs-release detect-repo-type container-release cosign-sign-blob release-notes central-quota policy policy-check
+          paths: .github/workflows breto calver needs-release detect-repo-type container-release cosign-sign-blob release-notes central-quota dco leaks policy policy-check
       - id: version
         if: steps.gate.outputs.needed == 'true'
         uses: ./calver # zizmor: ignore[self-repository] dogfoods the action of this commit
