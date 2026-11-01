@@ -59,13 +59,7 @@ runs:
           echo "::warning::policy-check found no workflows or actions to check"
           exit 0
         fi
-        # Repo-shape facts for policies that apply conditionally — the
-        # nix-flake rules fire only when the repo ships a flake devShell.
-        data_dir="$(mktemp -d)"
-        has_flake=false
-        [ -f flake.nix ] && has_flake=true
-        printf '{"repo":{"has_flake":%s}}\n' "$has_flake" > "$data_dir/repo.json"
-        conftest test --policy "$policy_dir" --data "$data_dir" "${targets[@]}"
+        conftest test --policy "$policy_dir" "${targets[@]}"
         # Containerfiles need the dockerfile parser and have no extension for
         # conftest to infer it from, so they are a second run rather than more
         # targets. Absent is fine — most repos ship no image.
@@ -74,5 +68,5 @@ runs:
           containerfiles+=("$f")
         done < <(find . -path ./.git -prune -o \( -name Containerfile -o -name Dockerfile \) -print)
         if [ "${#containerfiles[@]}" -gt 0 ]; then
-          conftest test --parser dockerfile --policy "$policy_dir" --data "$data_dir" "${containerfiles[@]}"
+          conftest test --parser dockerfile --policy "$policy_dir" "${containerfiles[@]}"
         fi
