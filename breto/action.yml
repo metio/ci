@@ -22,7 +22,7 @@ inputs:
     default: ""
   registries:
     description: >
-      Registries read after the definitions built into breto, one per line:
+      Registries read after the default registries, one per line:
       a directory with package definitions and groups, relative to the
       workspace, or github:OWNER/REPO for the registry that repository
       publishes as signed releases, which is installed at its latest
@@ -116,7 +116,7 @@ runs:
         echo "project=${project}" >> "$GITHUB_OUTPUT"
         config="${RUNNER_TEMP}/breto/config.edn"
         {
-          printf '{:registries ['
+          printf '{:extra-registries ['
           while IFS= read -r dir; do
             case "$dir" in
               "") continue ;;
