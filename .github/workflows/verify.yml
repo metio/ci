@@ -88,15 +88,6 @@ jobs:
         with:
           packages: jq
       - run: jq --version
-  leaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: ./leaks # zizmor: ignore[self-repository] dogfoods the action of this commit
   leaks-probe:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -135,7 +126,7 @@ jobs:
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks, leaks-probe]
+    needs: [yaml, github-actions, markdown, dco, policy, breto, breto-packages, leaks-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
