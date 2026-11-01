@@ -105,13 +105,13 @@ override.
 
 ### Frontend
 
-The Vite/React pipeline is **flake-driven and convention-based**: every gate runs
-through the calling repo's nix flake devShell, and a `detect` job reads the repo's
+The Vite/React pipeline is **breto-driven and convention-based**: every job installs
+the calling repo's `.breto.edn` with the [`breto`](#breto) action, and a `detect` job reads the repo's
 `package.json` scripts (and `lighthouserc.json`) to skip the gates a project
 doesn't define — so one workflow fits projects that ship different subsets. The
-repo must ship a `flake.nix` whose devShell provides `node`, chromium
-(`PLAYWRIGHT_BROWSERS_PATH` → `playwright-driver.browsers`, for the vitest browser
-and a11y gates), and the shared lint gate.
+repo must ship a `.breto.edn` naming `node` and `@lint`, and depend on `playwright`
+for the vitest browser and a11y gates, whose jobs install the browsers named by the
+`browsers` input (`chromium` by default).
 
 ```yaml
 # .github/workflows/verify.yml in a Vite/React project
@@ -148,10 +148,10 @@ Each gate keys off the script (or file) that enables it: `build` (typecheck +
 test + build + `size`), `browser` (`test:browser`), `coverage` (`coverage`),
 `lint` (`lint`), `knip` (`knip`), `accessibility-light` / `-dark` (`a11y:light` /
 `a11y:dark`), and `lighthouse` (a `lighthouserc.json`) — plus the always-on shared
-lint gate (reuse, typos, yamllint, actionlint, markdownlint). Two inputs cover the
-repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job) and
-`build-command` (the build/size and lighthouse invocation, e.g. a single-locale
-build for a per-visitor bundle-size measurement), alongside the shared `runs-on`.
+lint gate (`repository-lint`, which runs `breto run ci-lint`). Three inputs cover the
+repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job), `build-command`
+(the build/size and lighthouse invocation, e.g. a single-locale build for a per-visitor
+bundle-size measurement) and `browsers`, alongside the shared `runs-on`.
 
 ### Maven
 
@@ -501,36 +501,6 @@ it with cosign keyless. Needs `permissions: { id-token: write, packages: write, 
     version: ${{ steps.version.outputs.version }}
 ```
 
-### `nix-devshell`
-
-Installs Nix and caches the `/nix` store (keyed on `flake.nix`/`flake.lock`), so
-a repo whose toolchain is a nix flake runs every gate through the flake's devShell
-and CI resolves the exact versions in `flake.lock`. It lives in its own repo,
-[`metio/nix-devshell`](https://github.com/metio/nix-devshell) — released
-independently so its version doesn't track this repo's cadence. Check out the repo
-first, then run each gate with `nix develop --command …`:
-
-```yaml
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@<sha>
-      - uses: metio/nix-devshell@<sha>
-      - run: nix develop --command <gate>
-```
-
-The store is downloaded only when the flake pin changes; every other run restores
-it in seconds. The two upstream refs it pins (the Nix installer and the store
-cache) are Renovate-bumped like any other action. Pair it with the
-[`policy-check`](#run-the-policies-in-another-repo) flake rules, which require a
-flake repo's tools to come from the devShell rather than setup/marketplace actions.
-
-`metio/ci/nix-devshell` still works as a backwards-compatible shim that forwards
-to `metio/nix-devshell`, so existing pins need no change; new callers should
-reference `metio/nix-devshell` directly.
-
 ## One required check per layer
 
 Each workflow ends in **one** aggregate job — `Verify` for the PR gate (build,
@@ -575,17 +545,6 @@ Each rule is a `deny`, so a violation fails the gate and blocks the merge:
 - **Job timeouts** — every job declares `timeout-minutes`, so a hung step can't
   hold a runner for GitHub's 360-minute default. Jobs that call a reusable
   workflow are exempt (GitHub rejects `timeout-minutes` there).
-- **Flake-owned toolchain** — in a repo that ships a `flake.nix` at its root
-  (`policy-check` detects it and passes the fact to the policies), workflow
-  tools must come from the flake's devShell: setup actions (`actions/setup-go`,
-  `azure/setup-helm`, …), marketplace lint actions (`crate-ci/typos`,
-  `fsfe/reuse-action`, …), and ad-hoc installers in `run:` blocks
-  (`pipx install`, `go install …@…`) are denied, because each pins a tool
-  version outside `flake.lock` and lets CI drift from the local shell. The
-  nix installer and the store cache stay allowed (they bootstrap the
-  devShell), and shared metio/ci composites own their internal tool pins.
-  Repos without a flake are unaffected. One rule is unconditional: a job that
-  runs `nix develop` must have a step installing nix first.
 - **Non-root containers** — the final stage of every `Containerfile` and
   `Dockerfile` declares a `USER` that is neither `root` nor uid `0`; without
   one, the image runs as whatever its base image defaults to. An image that
