@@ -58,12 +58,12 @@ on pull requests that a person opened.
 
 ### Golang
 
-The Go pipeline is **flake-driven and zero-config**: every gate runs through the
-calling repo's nix flake devShell (`nix develop --command`), so CI resolves the
-exact tool versions in `flake.lock` — identical to a local run — and a `detect`
-job skips the architecture gate when there's no `arch-go.yml`. A controller with
-envtest-backed tests and a plain library use the identical call. The repo must
-ship a `flake.nix` that provides `go` plus the correctness tools (see below).
+The Go pipeline is **zero-config**: every job installs the calling repo's
+toolchain with the [`breto`](#breto) action from its `.breto.edn`, so CI runs the
+exact versions the metio/toolchains groups pin — identical to a local
+`breto env` — and a `detect` job skips the architecture gate when there's no
+`arch-go.yml`. A controller with envtest-backed tests and a plain library use the
+identical call. The repo must ship a `.breto.edn` naming `@go` (see below).
 
 ```yaml
 # .github/workflows/verify.yml in a Go project
@@ -94,10 +94,10 @@ jobs:
           [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
 ```
 
-The flake devShell provides every tool: `go`, `staticcheck`, `gosec`, `gofumpt`,
-`govulncheck`, `arch-go`, `modernize`, and — for a controller — `KUBEBUILDER_ASSETS`
-(assemble it from nixpkgs' `etcd` + `kube-apiserver` + `kubectl`), so the envtest
-suite runs offline against the flake-pinned Kubernetes; the multi-version envtest
+`@go` provides every tool: `go`, `staticcheck`, `gosec`, `gofumpt`, `govulncheck`,
+`arch-go` and `modernize`. A controller adds `@envtest`, which sets
+`KUBEBUILDER_ASSETS`, so the envtest suite runs offline against the pinned
+Kubernetes; the multi-version envtest
 matrix is gone (its coverage lives in the kind smoke gate). The one thing `detect`
 still decides: the `architecture` job runs only when an `arch-go.yml` is present;
 otherwise it skips cleanly. The sole input, `runs-on`, exists for the rare runner
@@ -232,33 +232,6 @@ The caller provides the secrets `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_TOKEN`,
 `GPG_SECRET_KEY_BASE64` and `GPG_SECRET_KEY_PASSWORD`. `deploy-args` adds
 arguments to the deploy, such as `--projects a --also-make` to publish only part
 of a reactor.
-
-## Shared devShell
-
-[`metio/nix-devshell`](https://github.com/metio/nix-devshell) now owns the nix
-toolchain — `lib.mkDevShell`, the shared lint gate, and the from-source Go tools
-(`arch-go`, `modernize`, `helm-schema`) — and the Nix-installer action. A repo
-builds its devShell from `devshell.lib.mkDevShell`:
-
-```nix
-# a consuming repo's flake.nix
-inputs.devshell.url = "github:metio/nix-devshell";
-inputs.nixpkgs.follows = "devshell/nixpkgs";   # one nixpkgs pin, org-wide
-outputs = { nixpkgs, devshell, ... }:
-  let pkgs = nixpkgs.legacyPackages.x86_64-linux; in {
-    devShells.x86_64-linux.default = devshell.lib.mkDevShell {
-      inherit pkgs;
-      packages = [ pkgs.go (devshell.lib.arch-go pkgs) (devshell.lib.modernize pkgs) ];
-      env.KUBEBUILDER_ASSETS = "${devshell.lib.kubebuilderAssets pkgs}";  # controllers only
-    };
-  };
-```
-
-This repo consumes that same flake for its own devShell (the lint gate plus
-conftest for the policy tests). See the
-[nix-devshell README](https://github.com/metio/nix-devshell#readme) for the full
-`lib` surface — `mkDevShell`, `lintTools`, the from-source package builders, and
-`kubebuilderAssets`.
 
 ## Actions
 
@@ -548,7 +521,8 @@ The workflows and actions in this repo are checked against [conftest](https://ww
 policies (Rego) in [`policy/`](policy) — the org conventions a YAML linter can't
 know. The `policy` job in `verify.yml` runs them on every PR: `conftest verify`
 runs the policies' own unit tests, then `conftest test` checks the shipped files.
-Run the same locally from the dev shell with `conftest verify --policy policy`.
+Run the same locally with `conftest verify --policy policy`, with conftest from
+`breto install conftest`.
 
 Each rule is a `deny`, so a violation fails the gate and blocks the merge:
 

@@ -15,8 +15,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command ci-reuse
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          registries: github:metio/toolchains
+      - run: ci-reuse
   yaml:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -24,8 +26,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command ci-yaml
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          registries: github:metio/toolchains
+      - run: ci-yaml
   github-actions:
     # actionlint shells out to shellcheck for `run:` blocks; a failing finding
     # blocks the merge across the whole tree (the reusable workflow and every
@@ -36,8 +40,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command ci-actionlint
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          registries: github:metio/toolchains
+      - run: ci-actionlint
   markdown:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -45,8 +51,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command ci-markdown
+      - uses: ./breto # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          registries: github:metio/toolchains
+      - run: ci-markdown
   dco:
     # Dogfood the dco action this repo ships: every commit must carry a
     # Signed-off-by trailer. The require-dco policy (run by the policy job below)
