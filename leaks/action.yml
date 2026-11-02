@@ -4,9 +4,10 @@
 name: leaks
 description: >
   Scan the commits a pull request or push adds for secrets with betterleaks.
-  A pull request scans its base..head range, a push its before..after range,
-  and any other event the whole history. Findings listed in the repository's
-  .betterleaksignore are skipped. The calling job must check the repository
+  A pull request scans its base..head range, a merge group its base..head
+  range, a push its before..after range, and any other event the whole
+  history. Findings listed in the repository's .betterleaksignore are
+  skipped. The calling job must check the repository
   out with `fetch-depth: 0`, so every commit of the range is available.
 
 inputs:
@@ -40,6 +41,8 @@ runs:
         EVENT: ${{ github.event_name }}
         PR_BASE: ${{ github.event.pull_request.base.sha }}
         PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+        GROUP_HEAD: ${{ github.event.merge_group.head_sha }}
         BEFORE: ${{ github.event.before }}
         AFTER: ${{ github.event.after }}
       run: |
@@ -48,6 +51,7 @@ runs:
         if [ -z "$RANGE" ]; then
           case "$EVENT" in
             pull_request|pull_request_target) RANGE="${PR_BASE}..${PR_HEAD}" ;;
+            merge_group) RANGE="${GROUP_BASE}..${GROUP_HEAD}" ;;
             push)
               if [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "${BEFORE}^{commit}" 2> /dev/null; then
                 RANGE="${BEFORE}..${AFTER}"

@@ -241,8 +241,8 @@ version of `bb` on `PATH`, so install that first with [`breto`](#breto).
 
 Scans the commits a change adds for secrets with
 [betterleaks](https://github.com/betterleaks/betterleaks): the base..head range
-of a pull request, the before..after range of a push, and the whole history on
-any other event. The job checks the repository out with `fetch-depth: 0`:
+of a pull request or a merge group, the before..after range of a push, and the
+whole history on any other event. The job checks the repository out with `fetch-depth: 0`:
 
 ```yaml
 - uses: actions/checkout@<sha>
