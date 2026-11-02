@@ -42,7 +42,7 @@ jobs:
       # renovate: datasource=github-releases depName=astral-sh/uv
       UV_VERSION: 0.13.6
       # renovate: datasource=pypi depName=reuse
-      REUSE_VERSION: 6.2.0
+      REUSE_VERSION: 6.3.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
