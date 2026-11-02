@@ -29,7 +29,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
+    - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
       with:
         packages: betterleaks@${{ inputs.betterleaks-version }}
     - name: Scan for secrets
