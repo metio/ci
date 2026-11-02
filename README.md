@@ -14,7 +14,6 @@ language or build tool, so every project gets the same gates from one place.
 |---|---|
 | [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance and the [convention policies](#convention-policies) |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
-| [`frontend.yml`](.github/workflows/frontend.yml) | Vite/React (Node) projects — build, browser + coverage, lint, knip, a11y (light + dark), lighthouse, and the shared lint gate; each gate auto-detected from `package.json` scripts |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
 | [`maven-central-release.yml`](.github/workflows/maven-central-release.yml) | Maven Central releases — the change and quota gates, the signed deploy, and the GitHub release |
@@ -102,56 +101,6 @@ matrix is gone (its coverage lives in the kind smoke gate). The one thing `detec
 still decides: the `architecture` job runs only when an `arch-go.yml` is present;
 otherwise it skips cleanly. The sole input, `runs-on`, exists for the rare runner
 override.
-
-### Frontend
-
-The Vite/React pipeline is **breto-driven and convention-based**: every job installs
-the calling repo's `.breto.edn` with the [`breto`](#breto) action, and a `detect` job reads the repo's
-`package.json` scripts (and `lighthouserc.json`) to skip the gates a project
-doesn't define — so one workflow fits projects that ship different subsets. The
-repo must ship a `.breto.edn` naming `node` and `@lint`, and depend on `playwright`
-for the vitest browser and a11y gates, whose jobs install the browsers named by the
-`browsers` input (`chromium` by default).
-
-```yaml
-# .github/workflows/verify.yml in a Vite/React project
-name: Verify
-on:
-  pull_request:
-    branches: [main]
-permissions:
-  contents: read
-jobs:
-  frontend:
-    name: Frontend        # checks then read "Frontend / build", "Frontend / lint", …
-    uses: metio/ci/.github/workflows/frontend.yml@<sha>
-    with:                 # both optional, both default sensibly
-      node-options: --dns-result-order=ipv4first    # e.g. a prerender that binds localhost
-      build-command: PLINKY_LOCALE=en npm run build # e.g. a single-locale bundle-size build
-
-  # … the project's own repo-specific jobs …
-
-  verify:
-    name: Verify
-    needs: [frontend]     # plus the project's other jobs
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: |
-          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
-          [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
-```
-
-Each gate keys off the script (or file) that enables it: `build` (typecheck +
-test + build + `size`), `browser` (`test:browser`), `coverage` (`coverage`),
-`lint` (`lint`), `knip` (`knip`), `accessibility-light` / `-dark` (`a11y:light` /
-`a11y:dark`), and `lighthouse` (a `lighthouserc.json`) — plus the always-on shared
-lint gate (`repository-lint`, which runs `breto run ci-lint`). Three inputs cover the
-repo-specific bits: `node-options` (sets `NODE_OPTIONS` for every job), `build-command`
-(the build/size and lighthouse invocation, e.g. a single-locale build for a per-visitor
-bundle-size measurement) and `browsers`, alongside the shared `runs-on`.
 
 ### Maven
 
