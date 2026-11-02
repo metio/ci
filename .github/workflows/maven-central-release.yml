@@ -70,15 +70,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: gate
-        uses: metio/ci/needs-release@1bcfd5d852697876af6c191fa597cf5aab22cb62 # 2026.10.31124002
+        uses: metio/ci/needs-release@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
         with:
           paths: ${{ inputs.paths }}
       - id: quota
         if: steps.gate.outputs.needed == 'true'
-        uses: metio/ci/central-quota@1bcfd5d852697876af6c191fa597cf5aab22cb62 # 2026.10.31124002
+        uses: metio/ci/central-quota@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
       - id: version
         if: steps.gate.outputs.needed == 'true' && steps.quota.outputs.available == 'true'
-        uses: metio/ci/calver@1bcfd5d852697876af6c191fa597cf5aab22cb62 # 2026.10.31124002
+        uses: metio/ci/calver@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
 
   central:
     name: Maven Central
@@ -91,7 +91,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/breto@e4aa78a290262032763746eb6ae8a81949b2f0ca # 2026.11.1100533
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
         with:
           registries: github:metio/toolchains
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -156,7 +156,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: notes
-        uses: metio/ci/release-notes@1bcfd5d852697876af6c191fa597cf5aab22cb62 # 2026.10.31124002
+        uses: metio/ci/release-notes@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
         with:
           version: ${{ needs.gate.outputs.version }}
           previous: ${{ needs.gate.outputs.last }}
