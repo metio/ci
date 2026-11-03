@@ -11,6 +11,3 @@
 .DS_Store
 .claude/settings.local.json
 .breto.local.edn
-result
-result-*
-.direnv/
