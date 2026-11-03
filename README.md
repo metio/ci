@@ -162,7 +162,7 @@ profile, and the `github` job create the release that `central-quota` counts.
 name: Release
 on:
   schedule:
-    - cron: 23 4 3 * *    # the repo's day of the month
+    - cron: 58 20 17 * *    # the repo's slot in krei's release calendar
   workflow_dispatch:
 permissions:
   contents: write
@@ -400,19 +400,12 @@ sees its changes at its next slot.
 Central-publishing repos do **not** release per merge. Each runs a monthly
 scheduled workflow on its own day-of-month slot, gated on
 [`needs-release`](#needs-release) (did anything change?) and `central-quota`
-(is there budget?). Staggering the slots spreads the deployments through the
-month instead of bursting them, and gives the repos other projects build on the
-earliest slots, so a downstream repo's own slot already sees the new parent:
-
-| Day | Repo |
-|---|---|
-| 1 | `maven-parent` |
-| 2 | `devcontainer.java` |
-| 3 | `reguloj` |
-| 4 | `storage-units.java` |
-| 5 | `memoization.java` |
-| 6 | `javapoet-type-guesser` |
-| 8 | `yosql` |
+(is there budget?). [krei](https://github.com/metio/krei) writes these workflows
+and plans the slots from each repo's `:release` cadence: a hash of the repo id
+picks the day, a taken day passes on to the next free one, and `:after` places a
+repo after the ones it builds on, so a downstream repo's own slot already sees
+the new parent. Staggering the slots spreads the deployments through the month
+instead of bursting them. Each `release.yml` carries its slot in its cron line.
 
 Seven slots fit a budget of seven, and in a typical month most repos have no
 changes and skip themselves. The quota guard holds the line when manual
