@@ -120,7 +120,8 @@ still decides: the `architecture` job runs only when an `arch-go.yml` is present
 otherwise it skips cleanly. Four optional inputs cover the variation: `packages`
 (default `./...`) limits the test job, for a repository whose generated
 acceptance tests run in workflows of their own; `test-timeout-minutes` (default
-30) gives the test job more time; `tags` passes build tags to every job that
+30) and `lint-timeout-minutes` (default 15) give the test and lint jobs more
+time; `tags` passes build tags to every job that
 loads packages; `runs-on` exists for the rare runner override.
 
 ### Rust
