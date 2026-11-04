@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Rust
+
+# Reusable Rust pipeline for metio projects. Every job installs the calling
+# repo's toolchain with the breto action from its .breto.edn. @rust provides
+# rustup, whose proxies run the toolchain rust-toolchain.toml names, so CI and a
+# local breto env compile with the same compiler, rustfmt and clippy. A `detect`
+# job skips the dependency audit when the repo has no deny.toml; a repo with one
+# also names cargo-deny in its .breto.edn.
+#
+#   jobs:
+#     rust:
+#       name: Rust          # so checks read "Rust / test", "Rust / lint", …
+#       uses: metio/ci/.github/workflows/rust.yml@v1
+#
+# The caller keeps its own jobs, such as a cross-target build matrix, and one
+# all-green aggregate (named "Verify") that lists this `rust` job.
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+      test-timeout-minutes:
+        description: Time limit of the test job.
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: detect
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    outputs:
+      deny: ${{ steps.env.outputs.deny }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - id: env
+        run: |
+          deny=false
+          if [ -f deny.toml ]; then deny=true; fi
+          echo "deny=$deny" >> "$GITHUB_OUTPUT"
+          echo "detected: deny=$deny"
+
+  test:
+    name: test
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.test-timeout-minutes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
+        with:
+          registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-test-${{ runner.os }}-
+      - run: cargo build --locked --all-targets
+      - run: cargo test --locked
+
+  lint:
+    name: lint
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
+        with:
+          registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-lint-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-lint-${{ runner.os }}-
+      - run: cargo fmt --all --check
+      # Warnings fail the job, as in the Go pipeline; a lint the project rejects
+      # is allowed in Cargo.toml's [lints] table rather than ignored here.
+      - run: cargo clippy --locked --all-targets -- --deny warnings
+
+  dependencies:
+    name: dependencies
+    needs: detect
+    if: needs.detect.outputs.deny == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
+        with:
+          registries: github:metio/toolchains
+      # advisories, bans, licenses and sources, as deny.toml configures them
+      - run: cargo deny --locked check

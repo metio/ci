@@ -16,6 +16,7 @@ language or build tool, so every project gets the same gates from one place.
 | [`lint.yml`](.github/workflows/lint.yml) | Every project — `breto run ci-lint` (typos, yamllint, actionlint, zizmor, markdownlint) from the caller's `@lint` group |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
+| [`rust.yml`](.github/workflows/rust.yml) | Rust projects — build and test with the locked dependencies, rustfmt, clippy with warnings as errors, and (with a `deny.toml`) cargo-deny |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
 | [`maven-central-release.yml`](.github/workflows/maven-central-release.yml) | Maven Central releases — the change and quota gates, the signed deploy, and the GitHub release |
 
@@ -121,6 +122,47 @@ otherwise it skips cleanly. Four optional inputs cover the variation: `packages`
 acceptance tests run in workflows of their own; `test-timeout-minutes` (default
 30) gives the test job more time; `tags` passes build tags to every job that
 loads packages; `runs-on` exists for the rare runner override.
+
+### Rust
+
+The Rust pipeline installs the calling repo's toolchain with the [`breto`](#breto)
+action from its `.breto.edn`, which names `@rust`. `@rust` provides `rustup`,
+whose `cargo`, `rustfmt` and `clippy` proxies run the toolchain that
+`rust-toolchain.toml` names. The `lint` job fails on any clippy warning; a lint
+the project rejects belongs in the `[lints]` table of `Cargo.toml`. A `detect`
+job runs the `dependencies` job only when a `deny.toml` exists, and such a repo
+also names `cargo-deny` in its `.breto.edn`.
+
+```yaml
+# .github/workflows/verify.yml in a Rust project
+# SPDX-License-Identifier: 0BSD
+name: Verify
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  rust:
+    name: Rust            # checks then read "Rust / test", "Rust / lint", …
+    uses: metio/ci/.github/workflows/rust.yml@<sha>
+
+  # … the project's own jobs, such as a cross-target build matrix …
+
+  verify:
+    name: Verify
+    needs: [rust]          # plus the project's other jobs
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
+          [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
+```
+
+The inputs are `runs-on` and `test-timeout-minutes` (30 by default).
 
 ### Maven
 
