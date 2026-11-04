@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Lint
+
+# Reusable lint job for metio projects. It installs the calling repo's
+# toolchain from its .breto.edn, which names @lint, and runs `breto run
+# ci-lint`, so CI runs the same checks as a local `breto run ci-lint`.
+#
+#   jobs:
+#     lint:
+#       name: Lint          # so the check reads "Lint / ci-lint"
+#       uses: metio/ci/.github/workflows/lint.yml@<sha>
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for the job.
+        type: string
+        default: ubuntu-latest
+
+permissions:
+  contents: read
+
+jobs:
+  ci-lint:
+    name: ci-lint
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
+        with:
+          registries: github:metio/toolchains
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: breto run ci-lint

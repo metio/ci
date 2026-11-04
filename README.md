@@ -13,6 +13,7 @@ language or build tool, so every project gets the same gates from one place.
 | Workflow | For |
 |---|---|
 | [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance and the [convention policies](#convention-policies) |
+| [`lint.yml`](.github/workflows/lint.yml) | Every project — `breto run ci-lint` (typos, yamllint, actionlint, zizmor, markdownlint) from the caller's `@lint` group |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
@@ -54,6 +55,22 @@ jobs:
 It runs [`leaks`](#leaks), `reuse lint` and the [convention policies](#convention-policies) on every
 push and pull request, and [`dco`](#developer-certificate-of-origin)
 on pull requests that a person opened.
+
+### Lint
+
+The lint checks every project runs, from the `@lint` group the caller's
+`.breto.edn` names. The job runs `breto run ci-lint`, so a local run and CI
+check the same things with the same versions:
+
+```yaml
+jobs:
+  lint:
+    name: Lint            # the check reads "Lint / ci-lint"
+    uses: metio/ci/.github/workflows/lint.yml@<sha>
+```
+
+The Verify aggregate lists the `lint` job like any other. The sole input,
+`runs-on`, exists for the rare runner override.
 
 ### Golang
 
