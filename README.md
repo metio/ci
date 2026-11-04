@@ -99,10 +99,11 @@ jobs:
 Kubernetes; the multi-version envtest
 matrix is gone (its coverage lives in the kind smoke gate). The one thing `detect`
 still decides: the `architecture` job runs only when an `arch-go.yml` is present;
-otherwise it skips cleanly. Three optional inputs cover the variation: `packages`
+otherwise it skips cleanly. Four optional inputs cover the variation: `packages`
 (default `./...`) limits the test job, for a repository whose generated
-acceptance tests run in workflows of their own; `tags` passes build tags to
-every job that loads packages; `runs-on` exists for the rare runner override.
+acceptance tests run in workflows of their own; `test-timeout-minutes` (default
+30) gives the test job more time; `tags` passes build tags to every job that
+loads packages; `runs-on` exists for the rare runner override.
 
 ### Maven
 

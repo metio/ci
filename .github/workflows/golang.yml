@@ -37,6 +37,10 @@ on:
         description: Comma-separated build tags for every job that loads packages.
         type: string
         default: ""
+      test-timeout-minutes:
+        description: Time limit of the test job.
+        type: number
+        default: 30
 
 permissions:
   contents: read
@@ -66,7 +70,7 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     env:
       GOFLAGS: -tags=${{ inputs.tags }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
