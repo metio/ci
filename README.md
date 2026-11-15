@@ -17,6 +17,7 @@ language or build tool, so every project gets the same gates from one place.
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
 | [`rust.yml`](.github/workflows/rust.yml) | Rust projects — build and test with the locked dependencies, rustfmt, clippy with warnings as errors, and (with a `deny.toml`) cargo-deny |
+| [`hugo.yml`](.github/workflows/hugo.yml) | Hugo websites — build with the caller's `@docs` tools, htmltest when configured, and the gh-pages deploy from `main` |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |
 | [`maven-central-release.yml`](.github/workflows/maven-central-release.yml) | Maven Central releases — the change and quota gates, the signed deploy, and the GitHub release |
 
@@ -164,6 +165,49 @@ jobs:
 ```
 
 The inputs are `runs-on` and `test-timeout-minutes` (30 by default).
+
+### Hugo
+
+The Hugo pipeline installs the calling repo's tools with the [`breto`](#breto)
+action from its `.breto.edn`, which names `@docs`, so CI builds with the same
+`hugo` and `htmltest` as `breto run` does locally. The `build` job runs an
+optional `prepare` command, builds the site in `source`, and checks the result
+with htmltest when a config exists: `htmltest-config`, or else the first of
+`.htmltest.yml` and `htmltest.yml` in the repository root and then in `source`.
+Its `DirectoryPath` is relative to the repository root. The `deploy` job pushes
+the site to `gh-pages` with `cname` as its domain, only for a push, a schedule
+or a manual run on `branch` (`main` by default); without a `cname`, nothing is
+deployed. The calling job grants `contents: write` for that push.
+
+```yaml
+# .github/workflows/website.yml in a project with a Hugo site in docs/
+# SPDX-License-Identifier: 0BSD
+name: Website
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: 45 4 * * MON
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  website:
+    name: Website          # checks then read "Website / build"
+    uses: metio/ci/.github/workflows/hugo.yml@<sha>
+    permissions:
+      contents: write
+    with:
+      source: docs
+      prepare: hack/gen-docs-data.sh
+      cname: example.projects.metio.wtf
+```
+
+The inputs are `runs-on`, `source` (`.` by default), `prepare`,
+`htmltest-config`, `cname`, `branch` and `build-timeout-minutes` (30 by
+default).
 
 ### Maven
 

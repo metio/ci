@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Hugo
+
+# Reusable pipeline for metio websites built with Hugo. The build job installs
+# the calling repo's toolchain with the breto action from its .breto.edn, which
+# names @docs, so CI builds with the hugo and htmltest a local breto env links.
+# It runs htmltest when the repo has a config for it, and the deploy job
+# publishes the site to the gh-pages branch, only for a push, a schedule or a
+# manual run on the deploy branch.
+#
+#   jobs:
+#     website:
+#       name: Website       # so checks read "Website / build"
+#       uses: metio/ci/.github/workflows/hugo.yml@v1
+#       permissions:
+#         contents: write   # the deploy job pushes gh-pages
+#       with:
+#         source: docs
+#         cname: example.projects.metio.wtf
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for every job.
+        type: string
+        default: ubuntu-latest
+      source:
+        description: The site's directory, relative to the repository root.
+        type: string
+        default: .
+      prepare:
+        description: >
+          Shell command run from the repository root before the build, with the
+          project's tools on PATH, such as a script generating data files.
+        type: string
+        default: ""
+      htmltest-config:
+        description: >
+          The htmltest config, relative to the repository root. Without one,
+          the first of .htmltest.yml and htmltest.yml in the repository root and
+          then in the source directory is used, and htmltest is skipped when
+          none exists.
+        type: string
+        default: ""
+      cname:
+        description: The custom domain of the site. Without one, nothing is deployed.
+        type: string
+        default: ""
+      branch:
+        description: The branch whose site is deployed.
+        type: string
+        default: main
+      build-timeout-minutes:
+        description: Time limit of the build job.
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.build-timeout-minutes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Hugo reads each page's last change from the history.
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: metio/ci/breto@bfcb1a4d37c4fd4d5d9c27181191dcad0d04f90c # 2026.11.1211658
+        with:
+          registries: github:metio/toolchains
+      - if: inputs.prepare != ''
+        env:
+          PREPARE: ${{ inputs.prepare }}
+        run: bash -euo pipefail -c "$PREPARE"
+      - env:
+          SOURCE: ${{ inputs.source }}
+        run: hugo --minify --printI18nWarnings --printPathWarnings --printUnusedTemplates --source "$SOURCE"
+      - env:
+          SOURCE: ${{ inputs.source }}
+          CONFIG: ${{ inputs.htmltest-config }}
+        run: |
+          if [ -z "$CONFIG" ]; then
+            for candidate in .htmltest.yml htmltest.yml "${SOURCE}/.htmltest.yml" "${SOURCE}/htmltest.yml"; do
+              if [ -f "$candidate" ]; then CONFIG=$candidate; break; fi
+            done
+          fi
+          if [ -z "$CONFIG" ]; then
+            echo "::notice::no htmltest config, so the rendered site is not checked"
+            exit 0
+          fi
+          htmltest --conf "$CONFIG"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: site
+          path: ${{ inputs.source }}/public
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    name: deploy
+    needs: build
+    if: >-
+      inputs.cname != ''
+      && contains(fromJSON('["push", "schedule", "workflow_dispatch"]'), github.event_name)
+      && github.ref == format('refs/heads/{0}', inputs.branch)
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: hugo-deploy-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: site
+          path: site
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
+        with:
+          github_token: ${{ github.token }}
+          publish_dir: ./site
+          force_orphan: true
+          cname: ${{ inputs.cname }}
