@@ -12,7 +12,7 @@ language or build tool, so every project gets the same gates from one place.
 
 | Workflow | For |
 |---|---|
-| [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance and the [convention policies](#convention-policies) |
+| [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance, the prose lint of [`harper`](#harper) and the [convention policies](#convention-policies) |
 | [`lint.yml`](.github/workflows/lint.yml) | Every project — `breto run ci-lint` (typos, yamllint, actionlint, zizmor, markdownlint) from the caller's `@lint` group |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
 | [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
@@ -54,9 +54,10 @@ jobs:
         run: '[ "$RESULT" = success ] || { echo "::error::the baseline checks ended in $RESULT"; exit 1; }'
 ```
 
-It runs [`leaks`](#leaks), `reuse lint` and the [convention policies](#convention-policies) on every
+It runs [`leaks`](#leaks), `reuse lint`, [`harper`](#harper) and the [convention policies](#convention-policies) on every
 push and pull request, and [`dco`](#developer-certificate-of-origin)
-on pull requests that a person opened.
+on pull requests that a person opened. harper reports its findings as warnings,
+which leave the check green, until the metio repositories are free of them.
 
 ### Lint
 

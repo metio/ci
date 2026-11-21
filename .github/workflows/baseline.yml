@@ -51,6 +51,18 @@ jobs:
         with:
           packages: uv@${{ env.UV_VERSION }} reuse@${{ env.REUSE_VERSION }}
       - run: reuse lint
+  harper:
+    name: harper
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # Findings stay warnings until every repository is fixed.
+      - uses: metio/ci/harper@4c0b2d0ea6320c87aca3fbf525e8f21a60560bc6 # 2026.11.21082939
+        with:
+          fail: "false"
   policy:
     name: policy
     runs-on: ubuntu-latest
