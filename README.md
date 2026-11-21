@@ -15,7 +15,7 @@ language or build tool, so every project gets the same gates from one place.
 | [`baseline.yml`](.github/workflows/baseline.yml) | Every repository — secret scanning with [`leaks`](#leaks), the [DCO](#developer-certificate-of-origin) gate, REUSE compliance, the prose lint of [`harper`](#harper) and the [convention policies](#convention-policies) |
 | [`lint.yml`](.github/workflows/lint.yml) | Every project — `breto run ci-lint` (typos, yamllint, actionlint, zizmor, markdownlint) from the caller's `@lint` group |
 | [`golang.yml`](.github/workflows/golang.yml) | Go projects — build, race tests, vet, staticcheck, gosec, gofumpt, govulncheck, and (auto-detected) arch-go and envtest |
-| [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases |
+| [`clojure.yml`](.github/workflows/clojure.yml) | Clojure projects — test, clj-kondo, eastwood + splint, cljfmt, and clj-watson vulnerabilities, all through `deps.edn` aliases, with the downloaded dependencies cached per job |
 | [`rust.yml`](.github/workflows/rust.yml) | Rust projects — build and test with the locked dependencies, rustfmt, clippy with warnings as errors, and (with a `deny.toml`) cargo-deny |
 | [`hugo.yml`](.github/workflows/hugo.yml) | Hugo websites — build with the caller's `@docs` tools, htmltest when configured, and the gh-pages deploy from `main` |
 | [`maven.yml`](.github/workflows/maven.yml) | Maven (JVM) projects — the POM-driven build plus a javadoc gate, with the local repository cached |

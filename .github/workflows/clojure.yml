@@ -52,6 +52,21 @@ jobs:
       - uses: metio/ci/breto@d1d58ce5b2b4dbac322bedd78203810def514bcc # 2026.11.15184511
         with:
           registries: github:metio/toolchains
+      # The cache holds the Maven and git dependencies and the tools jar of
+      # the deps.clj behind `clojure`, which every run would otherwise
+      # download again. Each job resolves different aliases, so each keeps
+      # its own cache: a shared key is saved by whichever job finishes first
+      # and would lack the dependencies of the others. Keyed on the deps.edn
+      # files so a dependency change downloads only the delta; the prefix
+      # fallback restores the previous cache on a miss.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.deps.clj
+          key: clojure-test-${{ runner.os }}-${{ hashFiles('**/deps.edn') }}
+          restore-keys: clojure-test-${{ runner.os }}-
       - run: clojure -M:test
 
   lint:
@@ -84,6 +99,14 @@ jobs:
       - uses: metio/ci/breto@d1d58ce5b2b4dbac322bedd78203810def514bcc # 2026.11.15184511
         with:
           registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.deps.clj
+          key: clojure-analyze-${{ runner.os }}-${{ hashFiles('**/deps.edn') }}
+          restore-keys: clojure-analyze-${{ runner.os }}-
       # eastwood: deep analysis over macroexpanded code (reflection,
       # shadowing, suspicious expressions)
       - run: clojure -M:eastwood
@@ -101,6 +124,14 @@ jobs:
       - uses: metio/ci/breto@d1d58ce5b2b4dbac322bedd78203810def514bcc # 2026.11.15184511
         with:
           registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.deps.clj
+          key: clojure-format-${{ runner.os }}-${{ hashFiles('**/deps.edn') }}
+          restore-keys: clojure-format-${{ runner.os }}-
       - run: clojure -M:cljfmt check
 
   vulnerabilities:
@@ -114,6 +145,14 @@ jobs:
       - uses: metio/ci/breto@d1d58ce5b2b4dbac322bedd78203810def514bcc # 2026.11.15184511
         with:
           registries: github:metio/toolchains
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.deps.clj
+          key: clojure-vulnerabilities-${{ runner.os }}-${{ hashFiles('**/deps.edn') }}
+          restore-keys: clojure-vulnerabilities-${{ runner.os }}-
       # clj-watson against the GitHub advisory database; a reachable
       # advisory blocks merge. The token is only read, never written.
       - run: clojure -M:watson -p deps.edn -t github-advisory
