@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: The ci Authors
+# SPDX-License-Identifier: 0BSD
+
+name: harper
+description: >
+  Lint the prose of the Markdown files a repository tracks with harper-cli,
+  with the rules every metio repository shares. It reads docs and kb, or the
+  whole tree when neither exists, and skips files git marks
+  linguist-generated. Each finding becomes an annotation on its line.
+
+inputs:
+  path:
+    description: The repository to lint, relative to the workspace.
+    required: false
+    default: .
+  paths:
+    description: >
+      Paths inside the repository to lint, separated by spaces, in place of
+      docs and kb.
+    required: false
+    default: ""
+  ignore:
+    description: >
+      Further harper rules to skip, separated by commas, on top of the rules
+      every repository skips.
+    required: false
+    default: ""
+  fail:
+    description: >
+      Whether a finding fails the step. With false, findings are annotated as
+      warnings and the step succeeds.
+    required: false
+    default: "true"
+  harper-version:
+    description: harper-cli release to install.
+    required: false
+    # renovate: datasource=github-releases depName=Automattic/harper extractVersion=^v(?<version>.+)$
+    default: "3.0.0"
+
+runs:
+  using: composite
+  steps:
+    - uses: metio/ci/breto@d1d58ce5b2b4dbac322bedd78203810def514bcc # 2026.11.15184511
+      with:
+        packages: harper-cli@${{ inputs.harper-version }}
+    - name: Lint the prose
+      shell: bash
+      env:
+        LINT_PATH: ${{ inputs.path }}
+        LINT_PATHS: ${{ inputs.paths }}
+        HARPER_IGNORE: ${{ inputs.ignore }}
+        HARPER_FAIL: ${{ inputs.fail }}
+        SCRIPT: ${{ github.action_path }}/harper.sh
+      run: |
+        set -euo pipefail
+        cd "${GITHUB_WORKSPACE}/${LINT_PATH}"
+        read -r -a paths <<< "${LINT_PATHS}"
+        "${SCRIPT}" "${paths[@]}"

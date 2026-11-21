@@ -365,6 +365,30 @@ betterleaks prints for it. `range` takes git log options in place of the range
 the event implies, such as `--all`, and `path` names another repository in the
 workspace to scan.
 
+### `harper`
+
+Lints the prose of the Markdown files a repository tracks with
+[harper](https://github.com/Automattic/harper). It reads `docs` and `kb`, or the
+whole tree when neither exists, and skips the files git marks
+`linguist-generated` in `.gitattributes`, since generated prose is fixed where
+it is generated. Every finding becomes an annotation on its line:
+
+```yaml
+- uses: actions/checkout@<sha>
+  with:
+    persist-credentials: false
+- uses: metio/ci/harper@<sha>
+```
+
+Spell checking and title case are off, and so are the rules that mostly
+misfire on code spans, list items and tool names: SentenceCapitalization,
+SplitWords, OrthographicConsistency, ExpandConfiguration, CompoundNouns,
+MassNouns and Everyone. `ignore` skips further rules, `paths` names what to lint
+in place of `docs` and `kb`, and `fail: false` turns findings into warnings
+that leave the step green. `harper/harper.sh` runs the same lint outside a
+workflow, and the `ci-harper` command of metio/toolchains runs the same rules
+locally.
+
 ### `calver`
 
 The org's single version calculator (see [Versioning](#versioning)). Named for
