@@ -19,6 +19,7 @@ jobs:
       policy: ${{ steps.paths.outputs.policy }}
       dco: ${{ steps.paths.outputs.dco }}
       leaks: ${{ steps.paths.outputs.leaks }}
+      harper: ${{ steps.paths.outputs.harper }}
       breto: ${{ steps.paths.outputs.breto }}
       babashka-executable: ${{ steps.paths.outputs.babashka-executable }}
     steps:
@@ -38,6 +39,7 @@ jobs:
             echo "policy=$(touches '^((policy|policy-check)/|\.github/workflows/verify\.yml$)')"
             echo "dco=$(touches '^(dco/|\.github/workflows/verify\.yml$)')"
             echo "leaks=$(touches '^((leaks|breto)/|\.github/workflows/verify\.yml$)')"
+            echo "harper=$(touches '^((harper|breto)/|\.github/workflows/verify\.yml$)')"
             echo "breto=$(touches '^(breto/|\.github/workflows/verify\.yml$)')"
             echo "babashka-executable=$(touches '^(babashka-executable/|\.github/workflows/verify\.yml$)')"
           } >> "$GITHUB_OUTPUT"
@@ -165,12 +167,49 @@ jobs:
         env:
           OUTCOME: ${{ steps.leaking.outcome }}
         run: '[ "$OUTCOME" = failure ] || { echo "::error::the planted token went unreported"; exit 1; }'
+  harper-probe:
+    needs: [changes]
+    if: needs.changes.outputs.harper == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Create a clean, a flawed and a generated repository
+        run: |
+          set -euo pipefail
+          for name in clean flawed generated; do git init --quiet "probe/${name}"; done
+          printf '# Probe\n\nThis repository holds one file.\n' > probe/clean/README.md
+          printf '# Probe\n\nThis is a error in the prose.\n' > probe/flawed/README.md
+          cp probe/flawed/README.md probe/generated/README.md
+          printf 'README.md linguist-generated\n' > probe/generated/.gitattributes
+          for name in clean flawed generated; do git -C "probe/${name}" add --all; done
+      - uses: ./harper # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/clean
+      - uses: ./harper # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/generated
+      - uses: ./harper # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/flawed
+          fail: "false"
+      - id: flawed
+        continue-on-error: true
+        uses: ./harper # zizmor: ignore[self-repository] dogfoods the action of this commit
+        with:
+          path: probe/flawed
+      - name: Require the planted mistake to be found
+        env:
+          OUTCOME: ${{ steps.flawed.outcome }}
+        run: '[ "$OUTCOME" = failure ] || { echo "::error::the planted mistake went unreported"; exit 1; }'
   verify:
     # Single required check: mark only this one required in branch protection and
     # new jobs are covered automatically. Mirrors the pattern this repo gives
     # consumers via golang.yml.
     name: Verify
-    needs: [changes, lint, dco, policy, breto, babashka-executable, leaks-probe]
+    needs: [changes, lint, dco, policy, breto, babashka-executable, leaks-probe, harper-probe]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
