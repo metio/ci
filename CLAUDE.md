@@ -136,6 +136,12 @@ the pinned ref — no second checkout, no ref drift.
   shell variables (not `${{ }}` interpolated into the script) to avoid injection
   and keep actionlint/shellcheck clean; word-split deliberately with an explicit
   `# shellcheck disable=SC2086`.
+- **bash 3.2**: most reusable workflows take `runs-on`, and macOS runners run
+  `shell: bash` with `/bin/bash` 3.2. Give case patterns inside `$( )` their
+  leading `(`, guard empty arrays under `set -u` with `${a[@]+"${a[@]}"}`, and
+  avoid bash 4 features (`declare -A`, `mapfile`, `${v,,}`, `[[ -v ]]`).
+  `breto run ci-bash` parses every bash script with bash 3.2 in a container;
+  it catches syntax only, not runtime differences such as the empty array.
 - Validate workflow/action YAML with `actionlint` (it shells out to `shellcheck`
   for `run:` blocks). The repo has no language toolchain of its own; run linters
   from a metio Go repo's dev shell against the file until this repo has its own CI.
