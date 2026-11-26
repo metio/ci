@@ -1,4 +1,6 @@
 ;; SPDX-FileCopyrightText: The ci Authors
 ;; SPDX-License-Identifier: 0BSD
 
-{:packages ["@lint"]}
+{:packages ["@lint" "yq"]
+ :commands {"ci-bash" {:run ["bash" "test/bash-syntax.sh"]
+                       :description "Parse the bash of every action and workflow with the bash on PATH and with bash 3.2, the bash of macOS runners"}}}

@@ -135,13 +135,15 @@ runs:
           printf ']}\n'
         } > "$config"
         echo "BRETO_CONFIG=${config}" >> "$GITHUB_ENV"
+        # The case patterns below carry their leading ( because bash 3.2, /bin/bash on
+        # macOS, otherwise ends the command substitution at a pattern's closing paren.
         key=$({
           cat "$config"
           for f in "${project}/.breto.edn" "${project}/.breto.local.edn"; do [ -f "$f" ] && cat "$f"; done
           cd "${GITHUB_WORKSPACE}"
           while IFS= read -r dir; do
             [ -n "$dir" ] || continue
-            case "$dir" in github:* | gitlab:* | "{"*) continue ;; esac
+            case "$dir" in (github:* | gitlab:* | "{"*) continue ;; esac
             find "$dir" -maxdepth 1 \( -name '*.edn' -o -name breto.lock \) -type f | LC_ALL=C sort | xargs cat
           done <<< "$REGISTRIES"
         } | { if command -v sha256sum > /dev/null; then sha256sum; else shasum --algorithm 256; fi; } | cut -d ' ' -f 1)

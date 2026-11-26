@@ -55,4 +55,5 @@ runs:
         set -euo pipefail
         cd "${GITHUB_WORKSPACE}/${LINT_PATH}"
         read -r -a paths <<< "${LINT_PATHS}"
-        "${SCRIPT}" "${paths[@]}"
+        # bash 3.2, /bin/bash on macOS, calls an empty "${paths[@]}" unbound under set -u.
+        "${SCRIPT}" ${paths[@]+"${paths[@]}"}
